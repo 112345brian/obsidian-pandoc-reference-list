@@ -89,8 +89,11 @@ function getScopedSettings(file: TFile): ScopedSettings {
   }
 
   // Checks whether the bibliography is a relative path and replaces the path with an absolute one
-  if (existsSync(path.join(getVaultRoot(), path.dirname(file.path), output.bibliography))){
-    output.bibliography = path.join(getVaultRoot(), path.dirname(file.path), output.bibliography);
+  if (output.bibliography) {
+    const relativePath = path.join(getVaultRoot(), path.dirname(file.path), output.bibliography);
+    if (existsSync(relativePath)){
+      output.bibliography = relativePath;
+    }
   }
 
   return output;
@@ -247,6 +250,12 @@ export class BibManager {
         console.error(e);
         return this;
       }
+    } else {
+      // Load global style if not using custom style from frontmatter
+      await this.getLangAndStyle(lang, {
+        id: style,
+        explicitPath: pluginSettings.cslStylePath,
+      });
     }
 
     if (settings.lang) {
@@ -256,6 +265,13 @@ export class BibManager {
       } catch (e) {
         console.error(e);
         return this;
+      }
+    } else if (!settings.style) {
+      // Extract locales from the global style if no custom lang is set
+      const styleXML = this.styleCache.get(style);
+      if (styleXML) {
+        langs = extractRawLocales(styleXML, lang);
+        await this.loadLangs(langs);
       }
     }
 
@@ -302,7 +318,21 @@ export class BibManager {
   async loadGlobalBibFile(fromCache?: boolean) {
     const { settings } = this.plugin;
 
-    if (!settings.pathToBibliography) return;
+    if (!settings.pathToBibliography) {
+      // Even without a bibliography file, load the style and lang for use with YAML frontmatter
+      const style =
+        settings.cslStylePath ||
+        settings.cslStyleURL ||
+        'https://raw.githubusercontent.com/citation-style-language/styles/master/apa.csl';
+      const lang = settings.cslLang || 'en-US';
+
+      await this.getLangAndStyle(lang, {
+        id: style,
+        explicitPath: settings.cslStylePath,
+      });
+      return;
+    }
+
     if (!fromCache || this.bibCache.size === 0) {
       const bib = await bibToCSL(
         settings.pathToBibliography,

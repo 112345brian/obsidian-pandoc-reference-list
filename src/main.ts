@@ -324,13 +324,6 @@ export default class ReferenceList extends Plugin {
 
   processReferences = async () => {
     const { settings, view } = this;
-    if (!settings.pathToBibliography && !settings.pullFromZotero) {
-      return view?.setMessage(
-        t(
-          'Please provide the path to your pandoc compatible bibliography file in the Pandoc Reference List plugin settings.'
-        )
-      );
-    }
 
     const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (activeView) {
@@ -350,6 +343,18 @@ export default class ReferenceList extends Plugin {
           this.bibManager.fileCache.get(activeView.file)?.keys.size
         ) {
           view?.setMessage(t('Cannot connect to Zotero'));
+        } else if (
+          !bib &&
+          !settings.pathToBibliography &&
+          !settings.pullFromZotero &&
+          !cache?.settings?.bibliography
+        ) {
+          // Only show error message if there's no bibliography from any source
+          return view?.setMessage(
+            t(
+              'Please provide the path to your pandoc compatible bibliography file in the Pandoc Reference List plugin settings or in the YAML frontmatter of your markdown file.'
+            )
+          );
         } else {
           view?.setViewContent(bib);
         }
