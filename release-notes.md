@@ -1,3 +1,7 @@
+## 2.0.28
+
+- Fix: "Use native Zotero API" toggle label was invisible — translation strings added by the wjvg-gif cherry-pick were missing from the English locale, causing `t()` to return `undefined` and the label to render empty
+
 ## 2.0.27
 
 - Fix: `el.doc` / `el.win` DOM API calls replaced with safe fallbacks (`ownerDocument`, `defaultView`) — prevents crashes in contexts where those Obsidian-specific properties are unavailable

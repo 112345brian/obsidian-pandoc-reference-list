@@ -39,6 +39,9 @@ export default {
   'Pull bibliography from Zotero': 'Pull bibliography from Zotero',
   'When enabled, bibliography data will be pulled from Zotero rather than a bibliography file. The Better Bibtex plugin must be installed in Zotero.':
     'When enabled, bibliography data will be pulled from Zotero rather than a bibliography file. The Better Bibtex plugin must be installed in Zotero.',
+  'Use native Zotero API (Zotero 7/8)': 'Use native Zotero API (Zotero 7/8)',
+  'Query the standard Zotero local API directly using the native citationKey field introduced in Zotero 7/8. Better BibTeX is not required when this is enabled.':
+    'Query the standard Zotero local API directly using the native citationKey field introduced in Zotero 7/8. Better BibTeX is not required when this is enabled.',
   'Zotero port': 'Zotero port',
   "Use 24119 for Juris-M or specify a custom port if you have changed Zotero's default.":
     "Use 24119 for Juris-M or specify a custom port if you have changed Zotero's default.",
