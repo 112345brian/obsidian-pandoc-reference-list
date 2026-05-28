@@ -16,6 +16,8 @@ This fork combines improvements from several community forks and adds a bug fix 
 | Better error messages surfaced in the UI | [astroHaoPeng](https://github.com/astroHaoPeng/alp-obsidian-pandoc-reference-list) |
 | Native Zotero 7/8 API mode (no Better BibTeX required) | [wjvg-gif](https://github.com/wjvg-gif/obsidian-pandoc-reference-list-zotero8) |
 | Manual release trigger + pre-release detection in CI | [wjvg-gif](https://github.com/wjvg-gif/obsidian-pandoc-reference-list-zotero8) |
+| Fix: `el.doc` / `el.win` DOM fallbacks to prevent crashes | [sjelms](https://github.com/sjelms/obsidian-pandoc-inline-citations) |
+| Fix: wikilinks with aliases (`[[link\|alias]]`) no longer mis-parsed as citations | [sjelms](https://github.com/sjelms/obsidian-pandoc-inline-citations) |
 | **Fix: Zotero cache staleness bug** | this fork |
 
 ### Cache staleness bug fix
@@ -31,6 +33,7 @@ Original plugin by [mgmeyers](https://github.com/mgmeyers/obsidian-pandoc-refere
 Forks cherry-picked from:
 - [astroHaoPeng/alp-obsidian-pandoc-reference-list](https://github.com/astroHaoPeng/alp-obsidian-pandoc-reference-list)
 - [wjvg-gif/obsidian-pandoc-reference-list-zotero8](https://github.com/wjvg-gif/obsidian-pandoc-reference-list-zotero8)
+- [sjelms/obsidian-pandoc-inline-citations](https://github.com/sjelms/obsidian-pandoc-inline-citations)
 
 ## A note on how this fork was made
 

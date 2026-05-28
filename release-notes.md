@@ -1,3 +1,8 @@
+## 2.0.27
+
+- Fix: `el.doc` / `el.win` DOM API calls replaced with safe fallbacks (`ownerDocument`, `defaultView`) — prevents crashes in contexts where those Obsidian-specific properties are unavailable
+- Fix: wikilinks with aliases (`[[link|alias]]`) were being incorrectly parsed as citations due to the `|` character; they are now correctly skipped
+
 ## 2.0.26
 
 - Support file-relative and multiple bibliography files in YAML frontmatter
