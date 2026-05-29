@@ -39,10 +39,9 @@
 - [2025-05-29] `react-select` removed — replaced with a minimal `SearchSelect` Preact component; `react-select` was ~70 KB minified for two dropdowns
 
 ## TODO
+- [ ] Remove all Node.js deps — replace `node:fs`/`node:http`/`node:https`/`node:path`/`node:child_process` with Obsidian APIs (`requestUrl`, `vault.adapter`, `FileSystemAdapter.readLocalFile`, `normalizePath`, vault events); drop Pandoc entirely by adding `@retorquere/bibtex-parser`; set `isDesktopOnly: false`
 - [ ] Semicolons in citation prefixes/suffixes still sometimes mis-parse if the suffix itself contains `@` (edge case of the lookahead fix)
 - [ ] Table cell citekey autocomplete corrupts text — Obsidian `EditorSuggest` API limitation, unfixable without upstream change
-- [ ] Zotero adapter refactor: extract `ZoteroAdapter` interface with `BBTAdapter`/`NativeAdapter` to remove `if (useNativeZoteroAPI)` branching in `bibManager.ts`
-- [ ] Expand test coverage — `bibManager.test.ts` only covers `bibToCSL`/`getCSLLocale`/`getCSLStyle`; CSL rendering pipeline and Zotero type mapping are untested
 - [ ] TypeScript `moduleResolution` — currently `"node"` (deprecated in TS 5.x); safe to keep but could be updated to `"bundler"` for stricter correctness
 
 ## Tests
