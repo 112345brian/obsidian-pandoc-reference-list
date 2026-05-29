@@ -1,3 +1,7 @@
+## 2.0.41
+
+- **Critical fix: all .bib authors missing on mobile (and desktop without Zotero).** `@retorquere/bibtex-parser` v9 changed its output format: author/editor/translator arrays now live in `entry.fields.author` etc. as `{firstName, lastName}` objects — there is no longer an `entry.creators` property. The parser was always returning `entry.creators = undefined`, so every entry loaded from a `.bib` file had no author, rendering as "T (2014)" (title initial) instead of "Goldsmith and Crawford (2014)". On desktop this was hidden because Zotero provided the correct data. The fix reads creator roles from `entry.fields[role]` and falls back to `entry.creators[role]` for forwards/backwards compatibility with both parser layouts.
+
 ## 2.0.40
 
 - **Browse button now works on mobile:** on Android/iOS the OS file picker can't return a stable file-system path (it gives a content URI or sandboxed temp path). Instead, tapping Browse opens a fuzzy-search vault file picker modal — the same files as the autocomplete, but in a full modal for easier browsing on a touch screen. Desktop keeps the native OS file picker.
