@@ -1,3 +1,8 @@
+## 2.0.34
+
+- **BibTeX crash fix:** entries with no author/editor (e.g. `@online`, `@misc` without a `creators` field) no longer crash the bibliography loader — they load correctly with no author.
+- **Pandoc auto-detect fix:** the "Auto-detect" button now finds Pandoc installed via Homebrew on macOS (Apple Silicon `/opt/homebrew/bin` and Intel `/usr/local/bin`) even though Electron doesn't inherit the shell PATH.
+
 ## 2.0.33
 
 - **Citation decoration system:** resolved citekeys are now colored in your theme's accent color; `[[@wikilink]]` citations use the link color with a solid underline to distinguish them from plain `[@citations]`. Brackets and punctuation dim to `--text-muted` so the citekey stands out.

@@ -46,17 +46,55 @@ export async function bibToCSLViaPandoc(
 }
 
 /**
- * Attempt to find the pandoc binary on the system PATH.
+ * Attempt to find the pandoc binary.
  * Desktop only — returns null on mobile or if not found.
+ *
+ * Electron apps don't inherit the shell PATH, so `which` often fails even
+ * when Pandoc is installed via Homebrew. We fall back to checking a list of
+ * well-known locations directly.
  */
 export async function findPandoc(): Promise<string | null> {
   if (!Platform.isDesktop) return null;
   const platform = globalThis.process?.platform;
+
+  // Try `which` / `where` first — works if Pandoc is on the process PATH.
   const cmd = platform === 'win32' ? 'where' : 'which';
   try {
     const { stdout } = await execFileAsync(cmd, ['pandoc']);
-    return stdout.trim().split('\n')[0] ?? null;
+    const found = stdout.trim().split('\n')[0];
+    if (found) return found;
   } catch {
-    return null;
+    // PATH lookup failed — fall through to known locations.
   }
+
+  // Common install locations to try directly.
+  const candidates =
+    platform === 'win32'
+      ? [
+          'C:\\Program Files\\Pandoc\\pandoc.exe',
+          'C:\\Program Files (x86)\\Pandoc\\pandoc.exe',
+        ]
+      : [
+          '/opt/homebrew/bin/pandoc', // Apple Silicon Homebrew
+          '/usr/local/bin/pandoc',    // Intel Homebrew / manual install
+          '/usr/bin/pandoc',          // Linux system package
+          '/snap/bin/pandoc',         // Snap
+        ];
+
+  const [{ execFile }, { promisify }] = await Promise.all([
+    import('child_process'),
+    import('util'),
+  ]);
+  const execAsync = promisify(execFile);
+
+  for (const p of candidates) {
+    try {
+      await execAsync(p, ['--version']);
+      return p;
+    } catch {
+      // Not found or not executable — try next.
+    }
+  }
+
+  return null;
 }

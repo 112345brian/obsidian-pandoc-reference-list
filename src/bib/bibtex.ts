@@ -73,17 +73,15 @@ export function parseBibTeX(raw: string): PartialCSLEntry[] {
 
   const parsed = BibTeXParser.parse(raw, options) as BibTeXParser.Bibliography;
 
-  parsed.errors.forEach((e: { line: number; column: number; message: string }) => {
-    console.error(
-      `bripey-citation-suite: BibTeX parse error (line ${e.line}, col ${e.column}):`,
-      e.message
-    );
+  parsed.errors.forEach((e: unknown) => {
+    console.warn('bripey-citation-suite: BibTeX parse error:', e);
   });
 
   const results: PartialCSLEntry[] = [];
 
   for (const entry of parsed.entries) {
-    const f = entry.fields as Record<string, string[]>;
+    if (!entry?.key) continue;
+    const f = (entry.fields ?? {}) as Record<string, string[]>;
     const csl: Record<string, unknown> = {
       id: entry.key,
       type: BIBTEX_TYPE_TO_CSL[entry.type] ?? 'document',
@@ -111,7 +109,7 @@ export function parseBibTeX(raw: string): PartialCSLEntry[] {
       bookauthor: 'container-author',
     };
     for (const [bibRole, cslRole] of Object.entries(creatorRoleMap)) {
-      const creators = (entry.creators as Record<string, BibTeXParser.Creator[]>)[bibRole];
+      const creators = (entry.creators as Record<string, BibTeXParser.Creator[]> | undefined)?.[bibRole];
       if (creators?.length) csl[cslRole] = creators.map(creatorToCSL);
     }
 
