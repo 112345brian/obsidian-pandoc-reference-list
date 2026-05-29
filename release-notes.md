@@ -1,7 +1,5 @@
-## 2.0.30
+## 2.0.31
 
-- Mobile-compatible runtime path: `.bib` parsing now defaults to the built-in pure-JS parser, normal file/network I/O uses Obsidian APIs, and optional Pandoc support is kept desktop-only.
-- Zotero integration: supports merged `.bib` + Zotero sources, native Zotero API mode, ZotLit note creation/indexing, richer autocomplete, and `zotero-key` frontmatter stamping.
-- Citation rendering fixes: render citations inside footnotes, preserve semicolons in suffix text when no following citekey exists, and avoid ZotLit bracketed-suggest conflicts.
-- Sidebar and commands: add reference filtering and an "Insert bibliography at cursor" command.
-- Dependency cleanup: remove `lru-cache`, `execa`, `download`, and `react-select` from the runtime bundle.
+- Mobile load fix: Electron clipboard access is now desktop-only, with mobile falling back to the web clipboard API.
+- Mobile-compatible runtime path: `.bib` parsing defaults to the built-in pure-JS parser, normal file/network I/O uses Obsidian APIs, and optional Pandoc support is kept desktop-only.
+- Includes the Zotero, ZotLit, citation rendering, sidebar filtering, insert-bibliography command, and dependency cleanup changes from `2.0.30`.
