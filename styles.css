@@ -183,13 +183,26 @@ body {
   gap: var(--size-4-2);
 }
 
+/* Tooltip: stack entry on top, action buttons in a horizontal row below */
 .pwc-tooltip .csl-entry-wrapper {
   padding: 0;
+  flex-direction: column;
+}
+
+.pwc-tooltip .pwc-entry-btns {
+  flex-direction: row;
+  justify-content: flex-start;
 }
 
 .csl-entry {
   font-size: var(--pwc-font-size);
+  /* flex: 1 + min-width: 0 are both required for text to wrap inside a flex
+     container — without min-width: 0 the item never shrinks below its content
+     width and long words / URLs overflow the panel. */
+  flex: 1;
+  min-width: 0;
   word-wrap: break-word;
+  overflow-wrap: break-word;
   gap: var(--size-4-2);
 }
 

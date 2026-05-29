@@ -1,3 +1,8 @@
+## 2.0.37
+
+- **Reference list word wrap fix:** long titles, author names, and URLs now wrap correctly at the panel edge instead of overflowing. The fix adds `flex: 1; min-width: 0` to the citation entry element — both are required for text wrapping inside a flex container.
+- **Tooltip action icons now horizontal and below:** in the hover tooltip, the conflict/note/Zotero/PDF buttons now appear in a horizontal row beneath the citation text rather than in a vertical column beside it.
+
 ## 2.0.36
 
 - **Hotfix: `child_process` module crash** — Pandoc detection and invocation no longer throws `Failed to resolve module specifier 'child_process'`. esbuild 0.13.x leaves dynamic `import()` of external modules verbatim in the CJS bundle, which Electron's renderer can't resolve as an ES module. Replaced with synchronous `require()` calls, which work correctly in Electron's Node integration.
