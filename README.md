@@ -26,6 +26,23 @@ The original plugin uses an incremental sync strategy: on startup it loads the l
 
 The fix: `lastUpdate` now only advances when a fresh fetch from Zotero completes successfully.
 
+## Known issues from upstream
+
+The table below tracks open issues in the [upstream community repo](https://github.com/obsidian-community/obsidian-pandoc-reference-list/issues) and whether this fork addresses them.
+
+| Issue | Status in this fork |
+|-------|---------------------|
+| [#153](https://github.com/obsidian-community/obsidian-pandoc-reference-list/issues/153) Native Zotero 7/8 API (no BBT required) | ✅ Fixed — opt-in toggle in settings |
+| [#151](https://github.com/obsidian-community/obsidian-pandoc-reference-list/issues/151) Recently added Zotero items never picked up | ✅ Fixed — cache staleness bug (see above) |
+| [#118](https://github.com/obsidian-community/obsidian-pandoc-reference-list/issues/118) Multiple `.bib` files in frontmatter | ✅ Fixed — frontmatter `bibliography` accepts an array |
+| [#28](https://github.com/obsidian-community/obsidian-pandoc-reference-list/issues/28) Wikilink aliases (`[[link\|alias]]`) mis-parsed as citations | ✅ Fixed |
+| [#155](https://github.com/obsidian-community/obsidian-pandoc-reference-list/issues/155) Stale/invalid cached CSL causes "cannot find citation" for everyone | ✅ Fixed — cached CSL is validated; a previously downloaded 404 is detected and re-fetched |
+| [#127](https://github.com/obsidian-community/obsidian-pandoc-reference-list/issues/127) `setViewContent is not a function` console spam on startup | ✅ Fixed — `instanceof` guard on the view getter |
+| [#147](https://github.com/obsidian-community/obsidian-pandoc-reference-list/issues/147) Autocomplete suggestion in a table cell corrupts text | ⚠️ Still broken — Obsidian's `EditorSuggest` API reports wrong cursor position inside table cells |
+| [#124](https://github.com/obsidian-community/obsidian-pandoc-reference-list/issues/124) Semicolons inside citation prefixes/suffixes treated as separators | ⚠️ Still broken — the parser always treats `;` as a multi-citation separator |
+| [#119](https://github.com/obsidian-community/obsidian-pandoc-reference-list/issues/119) `%` in `.bib` file paths breaks parsing | 🚫 Pandoc behavior — escape `%` as `\%` in the `.bib` file |
+| [#157](https://github.com/obsidian-community/obsidian-pandoc-reference-list/issues/157) Citations in footnotes not rendered in reading mode | 🚫 Not yet implemented |
+
 ## Credits
 
 Original plugin by [mgmeyers](https://github.com/mgmeyers/obsidian-pandoc-reference-list), maintained by [obsidian-community](https://github.com/obsidian-community/obsidian-pandoc-reference-list). All the real work is theirs.
