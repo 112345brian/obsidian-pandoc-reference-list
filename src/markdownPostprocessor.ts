@@ -16,6 +16,18 @@ function onlyValType(segs: Segment[]) {
   return segs.map((s) => ({ type: s.type, val: s.val }));
 }
 
+// Obsidian renders footnotes in a <section data-footnotes> element.
+// The post-processor is called for that element but getSectionInfo returns
+// null because footnotes have no direct line correspondence in the source.
+// Detect this case so we can still process citations inside footnotes.
+function isFootnoteSection(el: HTMLElement): boolean {
+  return !!(
+    el.dataset?.footnotes !== undefined ||
+    el.closest('[data-footnotes]') ||
+    el.hasClass('footnotes')
+  );
+}
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function processCiteKeys(plugin: ReferenceList) {
   return (el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
@@ -23,18 +35,20 @@ export function processCiteKeys(plugin: ReferenceList) {
     const doc = (el as any).doc || el.ownerDocument || document;
     const walker = doc.createNodeIterator(el, NodeFilter.SHOW_TEXT);
     const sectionInfo = ctx.getSectionInfo(el);
+    const isFootnote = isFootnoteSection(el);
 
-    if (!sectionInfo && !el.hasClass('markdown-preview-view')) return;
+    if (!sectionInfo && !el.hasClass('markdown-preview-view') && !isFootnote) return;
 
-    // We wont get a sectionInfo in print mode
+    // We wont get a sectionInfo in print mode or for footnote sections
     const cache = plugin.bibManager.getCacheForPath(ctx.sourcePath);
-    const sectionCites = sectionInfo
-      ? plugin.bibManager.getCitationsForSection(
-          ctx.sourcePath,
-          sectionInfo.lineStart,
-          sectionInfo.lineEnd
-        )
-      : cache?.citations;
+    const sectionCites =
+      sectionInfo && !isFootnote
+        ? plugin.bibManager.getCitationsForSection(
+            ctx.sourcePath,
+            sectionInfo.lineStart,
+            sectionInfo.lineEnd
+          )
+        : cache?.citations;
 
     if (!sectionCites?.length) return;
 
