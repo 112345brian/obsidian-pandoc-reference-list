@@ -159,13 +159,28 @@ export async function getCSLStyle(
   ensureDir(cacheDir);
   if (fs.existsSync(outpath)) {
     const styleData = fs.readFileSync(outpath).toString();
-    styleCache.set(url, styleData);
-    return styleData;
+    // Reject stale cached error responses (e.g. a previously downloaded 404).
+    // Valid CSL files are XML documents that start with '<'.
+    if (styleData.trimStart().startsWith('<')) {
+      styleCache.set(url, styleData);
+      return styleData;
+    }
+    // Bad cache entry — delete it and re-download.
+    fs.unlinkSync(outpath);
   }
 
   const str = await new Promise<string>((res, rej) => {
     https.get(url, (result) => {
       let output = '';
+
+      if (result.statusCode !== 200) {
+        result.resume(); // drain the socket
+        return rej(
+          new Error(
+            `Error downloading CSL: HTTP ${result.statusCode} from ${url}`
+          )
+        );
+      }
 
       result.setEncoding('utf8');
       result.on('data', (chunk) => (output += chunk));

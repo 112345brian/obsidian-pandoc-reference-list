@@ -391,7 +391,8 @@ export default class ReferenceList extends Plugin {
   get view() {
     const leaves = this.app.workspace.getLeavesOfType(viewType);
     if (!leaves?.length) return null;
-    return leaves[0].view as ReferenceListView;
+    const v = leaves[0].view;
+    return v instanceof ReferenceListView ? v : null;
   }
 
   async initLeaf() {
