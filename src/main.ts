@@ -30,6 +30,7 @@ import { TooltipManager } from './tooltip';
 import { ReferenceListView, viewType } from './view';
 import { PromiseCapability } from './helpers';
 import { isAbsolutePath } from './bib/helpers';
+import { findPandoc } from './bib/pandoc';
 import { BibManager, getScopedSettings } from './bib/bibManager';
 import { CiteSuggest } from './citeSuggest/citeSuggest';
 
@@ -164,6 +165,14 @@ export default class ReferenceList extends Plugin {
       citeKeyPlugin,
       editorTooltipHandler(this.tooltipManager),
     ]);
+
+    // Attempt to auto-detect Pandoc on desktop if not already configured.
+    findPandoc().then((found) => {
+      if (found && !this.settings.pathToPandoc) {
+        this.settings.pathToPandoc = found;
+        this.saveSettings();
+      }
+    });
 
     this.initPromise.resolve();
     this.app.workspace.trigger('parse-style-settings');

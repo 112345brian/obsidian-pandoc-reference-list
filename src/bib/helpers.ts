@@ -1,6 +1,7 @@
 import { FileSystemAdapter, normalizePath, requestUrl } from 'obsidian';
 import { CSLList, PartialCSLEntry } from './types';
 import { parseBibFile } from './bibtex';
+import { bibToCSLViaPandoc } from './pandoc';
 export { zoteroItemToCSL } from './zotero-csl';
 
 export const DEFAULT_ZOTERO_PORT = '23119';
@@ -50,8 +51,26 @@ export async function getBibPath(bibPath: string): Promise<string> {
   );
 }
 
-export async function bibToCSL(bibPath: string): Promise<PartialCSLEntry[]> {
+export async function bibToCSL(
+  bibPath: string,
+  pathToPandoc?: string
+): Promise<PartialCSLEntry[]> {
   const resolved = await getBibPath(bibPath);
+  const ext = (resolved.split('.').pop() ?? '').toLowerCase();
+
+  // Use Pandoc when configured (desktop opt-in) for .bib/.yaml files.
+  // Falls back to the JS parser if Pandoc fails so existing configs keep working.
+  if (pathToPandoc && (ext === 'bib' || ext === 'yaml' || ext === 'yml')) {
+    try {
+      return await bibToCSLViaPandoc(resolved, pathToPandoc);
+    } catch (e) {
+      console.warn(
+        'pandoc-reference-list: Pandoc failed, falling back to JS parser:',
+        e
+      );
+    }
+  }
+
   const raw = await readFileText(resolved);
   return parseBibFile(raw, resolved);
 }

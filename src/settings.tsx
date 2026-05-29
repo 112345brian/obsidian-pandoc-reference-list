@@ -1,6 +1,7 @@
-import { PluginSettingTab, Setting } from 'obsidian';
+import { Platform, PluginSettingTab, Setting } from 'obsidian';
 
 import { t } from './lang/helpers';
+import { findPandoc } from './bib/pandoc';
 import ReferenceList from './main';
 import ReactDOM from 'react-dom';
 import React from 'react';
@@ -12,6 +13,7 @@ import { langListRaw } from './bib/cslLangList';
 import { ZoteroPullSetting } from './settings/ZoteroPullSetting';
 
 export const DEFAULT_SETTINGS: ReferenceListSettings = {
+  pathToPandoc: '',
   tooltipDelay: 400,
   zoteroGroups: [],
   renderCitations: true,
@@ -28,6 +30,7 @@ export interface ZoteroGroup {
 }
 
 export interface ReferenceListSettings {
+  pathToPandoc?: string;
   pathToBibliography?: string;
 
   cslStyleURL?: string;
@@ -65,6 +68,45 @@ export class ReferenceListSettingsTab extends PluginSettingTab {
     const { containerEl } = this;
 
     containerEl.empty();
+
+    // Pandoc is optional — the plugin uses a built-in JS parser by default.
+    // Set this path if you need Pandoc's higher-fidelity .bib/.yaml handling
+    // (e.g. @string macros, unusual encodings). Desktop only.
+    if (Platform.isDesktop) {
+      new Setting(containerEl)
+        .setName(t('Path to Pandoc (optional)'))
+        .setDesc(
+          t(
+            'Absolute path to the Pandoc executable. When set, Pandoc is used to convert .bib/.yaml files instead of the built-in parser. Leave blank to use the built-in parser (works on all platforms).'
+          )
+        )
+        .then((setting) => {
+          let inputEl: HTMLInputElement;
+          setting.addText((text) => {
+            inputEl = text.inputEl;
+            text
+              .setPlaceholder('/usr/local/bin/pandoc')
+              .setValue(this.plugin.settings.pathToPandoc ?? '')
+              .onChange((value) => {
+                this.plugin.settings.pathToPandoc = value;
+                this.plugin.saveSettings();
+              });
+          });
+
+          setting.addExtraButton((b) => {
+            b.setIcon('magnifying-glass');
+            b.setTooltip(t('Auto-detect Pandoc'));
+            b.onClick(async () => {
+              const found = await findPandoc();
+              if (found) {
+                inputEl.value = found;
+                this.plugin.settings.pathToPandoc = found;
+                this.plugin.saveSettings();
+              }
+            });
+          });
+        });
+    }
 
     new Setting(containerEl)
       .setName(t('Path to bibliography file'))

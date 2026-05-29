@@ -285,7 +285,9 @@ export class BibManager {
       try {
         const bib: PartialCSLEntry[] = [];
         for (const bibPath of settings.bibliography) {
-          bib.push(...(await bibToCSL(bibPath)));
+          bib.push(
+            ...(await bibToCSL(bibPath, this.plugin.settings.pathToPandoc))
+          );
         }
         bibCache = new Map();
 
@@ -325,7 +327,10 @@ export class BibManager {
 
     if (!settings.pathToBibliography) return;
     if (!fromCache || this.bibCache.size === 0) {
-      const bib = await bibToCSL(settings.pathToBibliography);
+      const bib = await bibToCSL(
+        settings.pathToBibliography,
+        settings.pathToPandoc
+      );
 
       this.bibCache = new Map();
 
