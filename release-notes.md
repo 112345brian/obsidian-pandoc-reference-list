@@ -1,3 +1,8 @@
+## 2.0.43
+
+- **Citekey autocomplete: suggestions now appear after the first character.** Previously the suggestion panel only appeared after typing two characters past `@` — so `[@s` showed nothing and `[@sm` was the earliest trigger. Now suggestions appear as soon as you've typed one character (`[@s`).
+- **Citekey autocomplete: trigger fires after more preceding characters.** The `@` trigger now fires after any non-word character (space, `(`, `.`, `,`, `;`, `[`, `-`, etc.) instead of a narrow whitelist. This means `(@key`, `.@key`, `, @key`, and similar inline non-parenthetical forms all open the suggestion panel correctly. Bare word characters before `@` (e.g. email addresses like `user@domain.com`) still don't trigger, which is the correct behavior.
+
 ## 2.0.42
 
 - **BibTeX parser: recovery passes.** After normal field extraction, three cleanup passes now run on every entry:

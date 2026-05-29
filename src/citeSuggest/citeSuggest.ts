@@ -37,7 +37,7 @@ interface Loading {
   loading: boolean;
 }
 
-const triggerRE = /(^|[ \t\v[\-\r\n;])(@)([\p{L}\p{N}:.#$%&\-+?<>~_/]+)$/u;
+const triggerRE = /(^|[^\p{L}\p{N}@])(@)([\p{L}\p{N}:.#$%&\-+?<>~_/]+)$/u;
 
 export class CiteSuggest extends EditorSuggest<
   Fuse.FuseResult<PartialCSLEntry> | Loading
@@ -77,11 +77,7 @@ export class CiteSuggest extends EditorSuggest<
   }
 
   getSuggestions(context: EditorSuggestContext) {
-    if (
-      !context.query ||
-      context.query.length < 2 ||
-      context.query.includes(' ')
-    ) {
+    if (!context.query || context.query.includes(' ')) {
       return null;
     }
 
