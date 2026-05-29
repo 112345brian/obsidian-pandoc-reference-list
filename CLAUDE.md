@@ -4,16 +4,17 @@
 - Build: `npm run build` (production minified) / `npm run dev` (watch mode)
 - Test: `npm test` (Jest + jsdom — Zotero tests require a live Zotero instance)
 - Lint/Format: `npm run lint` / `npm run prettier` / `npm run clean` (both)
-- Run/Dev: copy `main.js`, `manifest.json`, `styles.css` into your vault's `.obsidian/plugins/bripey-citation-suite/` after building
+- Dev install: copy `main.js`, `manifest.json`, `styles.css` into vault's `.obsidian/plugins/bripey-citation-suite/`
 
 ## Stack
-- TypeScript 5.x (compiled by esbuild, type-checked by `tsc --noemit`)
+- TypeScript 5.x — esbuild compiles, `tsc --noemit` type-checks
 - Obsidian plugin — desktop + mobile, min Obsidian 0.15.0
-- Preact aliased as React (`react` and `react-dom` both resolve to `@preact/compat`)
-- `citeproc` (2.4.x): CSL citation rendering engine — not replaceable
-- `@retorquere/bibtex-parser`: pure-JS BibTeX/BibLaTeX parser (replaces Pandoc)
-- `fuse.js`: fuzzy search powering citekey autocomplete
-- No Node.js modules — all I/O uses Obsidian's `vault.adapter`, `FileSystemAdapter.readLocalFile`, and `requestUrl`
+- Preact aliased as React (`react` / `react-dom` → `@preact/compat`)
+- `citeproc` 2.4.x — CSL rendering engine, not replaceable
+- `@retorquere/bibtex-parser` — pure-JS BibTeX/BibLaTeX parser (default; Pandoc opt-in)
+- `fuse.js` — fuzzy search for citekey autocomplete
+- No Node.js modules at runtime — all I/O uses `vault.adapter`, `FileSystemAdapter.readLocalFile`, `requestUrl`
+- Pandoc (optional, desktop-only) uses synchronous `require('child_process')` — NOT dynamic `import()`, which esbuild 0.13.x leaves verbatim in CJS output and breaks in Electron's renderer
 
 ## Architecture
 - `src/bib/` — bibliography loading, Zotero sync, CSL rendering; no UI imports
@@ -21,36 +22,46 @@
 - `src/editorExtension.ts` — CodeMirror 6 decorations and live-preview widgets
 - `src/markdownPostprocessor.ts` — reading-mode post-processor
 - `src/view.ts` — sidebar reference panel (ItemView)
-- `src/tooltip.ts` — hover tooltip manager
-- `src/settings.tsx` — plugin settings tab (Preact)
+- `src/tooltip.ts` — hover tooltip + mobile long-press gesture + mobile bottom-sheet card
+- `src/settings.tsx` — settings tab (Preact); `FolderSuggest` and `BibFileSuggest` in `src/settings/`
 - `src/main.ts` — plugin lifecycle, commands, event wiring
 
 **Boundaries:**
 - `parser/` must not import from `bib/`, `editorExtension`, or `view`
-- `bib/` must not import from `editorExtension` or `view` (only `src/helpers.ts` and `src/parser/` are allowed)
-- All bibliography access from UI code goes through `BibManager` — never call Zotero helpers directly from `main.ts` or `view.ts`
-- CSL engine is stateful: always render through `BibManager.getReferenceList()`; never instantiate `citeproc` directly elsewhere
+- `bib/` must not import from `editorExtension` or `view` (only `src/helpers.ts` and `src/parser/`)
+- All bibliography access from UI goes through `BibManager` — never call Zotero helpers from `main.ts` or `view.ts`
+- CSL engine is stateful: render only through `BibManager.getReferenceList()`; never instantiate `citeproc` elsewhere
+
+## Mobile
+- Use `touchstart`/`touchmove`/`touchend`/`touchcancel` for gesture detection — NOT pointer events. Touch events fire `touchcancel` when the browser takes over (scroll, pinch), which pointer events don't reliably surface in WebView.
+- Long-press in the editor: timer starts on `touchstart`, cancelled by `touchmove` (> 10 px slop), `touchend`, or `touchcancel`. If cursor is already inside the target span (`document.getSelection()` check), skip — let native selection handle it.
+- Reading mode: synthesized `click` from tap is sufficient; no long-press needed.
+- `Platform.isMobile` guards all mobile-specific paths. `Platform.isDesktop` for file-picker and Pandoc.
+- `getRightLeaf(false)` returns `null` on mobile — always null-guard it.
 
 ## Decisions
-- [2024] Preact over full React — Obsidian's bundler is tree-shake-unfriendly; Preact is identical API at ~3 KB
-- [2024] Native Zotero REST API added — allows use without Better BibTeX plugin (Zotero 7/8 only); BBT path retained for Zotero 6 users
-- [2025-05-29] `lru-cache` removed — 10-slot max means a hand-rolled Map-based LRU is trivial; eliminated a dep for no functionality loss
-- [2025-05-29] `execa` removed — `child_process.execFile` via `util.promisify` covers the single pandoc invocation; `execa` was multi-MB for one call
-- [2025-05-29] `download` removed — replaced with `node:http` requests already present in the file for Zotero JSON-RPC; `download` was only used for two HTTP GETs
-- [2025-05-29] `react-select` removed — replaced with a minimal `SearchSelect` Preact component; `react-select` was ~70 KB minified for two dropdowns
-- [2025-05-29] Pandoc optional — replaced with `@retorquere/bibtex-parser` (pure JS) as default; Pandoc path still accepted as opt-in for edge cases
-- [2025-05-29] All `node:` modules removed — `vault.adapter` + `FileSystemAdapter.readLocalFile` + `requestUrl` cover every use case; `isDesktopOnly` flipped to false
-- [2025-05-29] Multi-source merge — .bib and Zotero now load simultaneously; Zotero wins on conflicts; cross-group Zotero duplicates resolved by `_dateModified`
+- [2024] Preact over React — identical API, ~3 KB vs ~40 KB, Obsidian's bundler is tree-shake-unfriendly
+- [2024] Native Zotero REST API — no Better BibTeX required for Zotero 7/8; BBT retained for Zotero 6
+- [2025-05-29] `lru-cache` removed — hand-rolled 10-slot Map LRU covers the use case
+- [2025-05-29] `execa` removed — synchronous `require('child_process')` with `declare const require` covers the single Pandoc call
+- [2025-05-29] `download` removed — `requestUrl` covers both HTTP GETs
+- [2025-05-29] `react-select` removed — minimal `SearchSelect` Preact component replaces it (~70 KB saved)
+- [2025-05-29] Pandoc made optional — `@retorquere/bibtex-parser` is the default; Pandoc accepted as opt-in
+- [2025-05-29] Multi-source merge — `.bib` + Zotero load simultaneously; Zotero wins on conflict; cross-group duplicates resolved by `dateModified`
 
 ## TODO
-- [ ] Semicolons in citation prefixes/suffixes still sometimes mis-parse if the suffix itself contains `@` (edge case of the lookahead fix)
-- [ ] Table cell citekey autocomplete corrupts text — Obsidian `EditorSuggest` API limitation, unfixable without upstream change
-- [ ] TypeScript `moduleResolution` — currently `"node"` (deprecated in TS 5.x); safe to keep but could be updated to `"bundler"` for stricter correctness
+- [ ] Semicolons in citation suffixes still sometimes mis-parse when the suffix itself contains `@` (edge case of the lookahead fix)
+- [ ] Table cell citekey autocomplete corrupts text — `EditorSuggest` API reports wrong cursor position inside table cells; unfixable without upstream Obsidian change
+- [ ] `moduleResolution: "node"` is deprecated in TS 5.x; safe to keep, could migrate to `"bundler"`
 
 ## Tests
-- Run: `npm test`
-- Test files: `src/parser/tests/parser.test.ts`, `src/bib/tests/bibManager.test.ts`
-- Parser tests: 60 tests covering citation segment parsing, wikilink aliases, semicolon-in-suffix fix
-- `bibManager` tests cover `SimpleLRU` (5 tests), `zoteroItemToCSL` field mapping (7 tests), and `bibToCSL`/`getCSLLocale`/`getCSLStyle`
-- The `getZUserGroups` and `isZoteroRunning` tests require a live Zotero instance; `getZBib` is commented out
-- Not covered: BibTeX parser field mapping (pure-JS, worth adding), CSL rendering pipeline, native API sync, settings persistence
+- `src/parser/tests/parser.test.ts` — 60 tests: citation segments, wikilink aliases, semicolon-in-suffix
+- `src/bib/tests/bibManager.test.ts` — `SimpleLRU`, `zoteroItemToCSL`, `bibToCSL`, `getCSLLocale`, `getCSLStyle`
+- Zotero live-instance tests (`getZUserGroups`, `isZoteroRunning`) are skipped in CI
+- Not covered: BibTeX field mapping (worth adding), CSL render pipeline, native API sync, settings persistence
+
+## Docs
+User-facing documentation lives in `docs/`. Keep it accurate when changing behaviour:
+- `docs/setup.md` — installation, bibliography formats, frontmatter keys
+- `docs/zotero.md` — Zotero integration (native API, BBT, groups, conflict resolution)
+- `docs/mobile.md` — mobile-specific behaviour (tap/long-press, file picker, limitations)

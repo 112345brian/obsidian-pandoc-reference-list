@@ -22,25 +22,15 @@ A citation management plugin for Obsidian. Displays a formatted reference sideba
 1. Install [BRAT](https://github.com/TfTHacker/obsidian42-brat)
 2. In BRAT settings, add: `112345brian/bripey-citation-suite`
 
-## Setup
+## Documentation
 
-1. In plugin settings, set the path to your bibliography file. Vault-relative paths (e.g. `references.bib`) work on all platforms; absolute paths work on desktop only.
-2. Supported formats: **BibTeX/BibLaTeX** (`.bib`), **CSL-JSON** (`.json`), **CSL-YAML** (`.yaml`/`.yml`).
-3. Optionally set a path or URL to a [CSL style](https://citationstyles.org/).
-4. Run **Bripey Citation Suite: Show reference list** from the command palette.
-
-You can also set bibliography and style per-note in frontmatter:
-
-```yaml
----
-bibliography: ./references.bib        # or an array of paths
-csl: ./chicago-author-date.csl        # or a URL
----
-```
+- [Setup guide](docs/setup.md) — installation, bibliography formats, frontmatter keys, CSL styles
+- [Zotero integration](docs/zotero.md) — native API, Better BibTeX, library selection, multi-source merge
+- [Mobile](docs/mobile.md) — tap/long-press behaviour, file picker, limitations
 
 ## Changelog
 
-See [release-notes.md](release-notes.md) for a full list of changes, fixes, and version history.
+See [release-notes.md](release-notes.md) for a full version history.
 
 ## Credits
 

@@ -314,15 +314,24 @@ export class TooltipManager {
     let activeKey: string;
 
     // ── Long-press detection (mobile editor only) ────────────────────────────
-    // Tap → cursor placement (no interception).
+    // Tap  → cursor placement as normal (no interception).
     // Hold ≥ LP_DELAY ms without significant movement → citation action.
+    //
+    // Uses touch events rather than pointer events: `touchcancel` fires when
+    // the browser takes over a touch sequence (scroll, pinch-zoom, system
+    // interrupt) — pointer events don't surface this reliably in WebView.
     const LP_DELAY = 500; // ms
-    const LP_SLOP = 10;   // px movement before the long-press is cancelled
-    let lpTimer = 0;
+    const LP_SLOP  = 10;  // px of movement allowed before cancelling
+    let lpTimer  = 0;
     let lpTarget: HTMLElement | null = null;
-    let lpFired = false;
+    let lpFired  = false;
     let lpStartX = 0;
     let lpStartY = 0;
+
+    const lpCancel = (win: Window) => {
+      if (lpTimer) { win.clearTimeout(lpTimer); lpTimer = 0; }
+      lpTarget = null;
+    };
 
     return {
       scroll: (evt: UIEvent) => {
@@ -331,38 +340,25 @@ export class TooltipManager {
           evt.view?.clearTimeout(dbOverTimer);
           activeKey = null;
         }
-        // Cancel any in-progress long press when the user scrolls.
-        if (lpTimer) {
-          (evt.view as Window | null)?.clearTimeout(lpTimer);
-          lpTimer = 0;
-          lpTarget = null;
-        }
+        if (lpTimer) lpCancel((evt.view as Window) ?? window);
       },
 
-      // Mobile: start long-press timer on pointer-down over a citation span.
-      pointerdown: (evt: PointerEvent) => {
+      // Start the long-press timer when a finger touches a citation span.
+      touchstart: (evt: TouchEvent) => {
         if (!Platform.isMobile) return;
-        const target = (evt.target ?? (evt as any).targetNode) as HTMLElement | null;
-        if (
-          !target ||
-          !target.dataset?.citekey ||
-          target.classList?.contains('is-link')
-        ) return;
+        const target = evt.target as HTMLElement | null;
+        if (!target?.dataset?.citekey || target.classList.contains('is-link')) return;
 
-        // If the cursor is already inside this span the user is doing a
-        // hold-to-select gesture — let the OS handle native text selection.
-        const doc = target.ownerDocument ?? document;
-        const sel = doc.getSelection();
-        if (sel && sel.rangeCount > 0) {
-          const anchor = sel.getRangeAt(0).commonAncestorContainer;
-          if (target.contains(anchor)) return;
-        }
+        // Cursor already inside this span → OS handles native selection.
+        const sel = (target.ownerDocument ?? document).getSelection();
+        if (sel?.rangeCount && target.contains(sel.getRangeAt(0).commonAncestorContainer)) return;
 
+        const touch = evt.touches[0];
+        lpStartX = touch.clientX;
+        lpStartY = touch.clientY;
         lpTarget = target;
-        lpFired = false;
-        lpStartX = evt.clientX;
-        lpStartY = evt.clientY;
-        const win = (evt.view as Window | null) ?? window;
+        lpFired  = false;
+        const win = (evt.view as Window) ?? window;
         win.clearTimeout(lpTimer);
         lpTimer = win.setTimeout(() => {
           lpFired = true;
@@ -373,40 +369,35 @@ export class TooltipManager {
         }, LP_DELAY);
       },
 
-      // Cancel the long-press if the finger moves too far (scroll / drag).
-      pointermove: (evt: PointerEvent) => {
+      // Cancel if the finger moves enough to be a scroll gesture.
+      touchmove: (evt: TouchEvent) => {
         if (!lpTimer) return;
-        const dx = evt.clientX - lpStartX;
-        const dy = evt.clientY - lpStartY;
-        if (Math.hypot(dx, dy) > LP_SLOP) {
-          ((evt.view as Window | null) ?? window).clearTimeout(lpTimer);
-          lpTimer = 0;
-          lpTarget = null;
+        const touch = evt.changedTouches[0];
+        if (Math.hypot(touch.clientX - lpStartX, touch.clientY - lpStartY) > LP_SLOP) {
+          lpCancel((evt.view as Window) ?? window);
         }
       },
 
-      // Cancel the long-press timer on lift (regular tap).
-      pointerup: (evt: PointerEvent) => {
-        if (lpTimer) {
-          ((evt.view as Window | null) ?? window).clearTimeout(lpTimer);
-          lpTimer = 0;
-          lpTarget = null;
-        }
+      // Regular tap — finger lifted before timer, let click through normally.
+      touchend: (evt: TouchEvent) => {
+        if (lpTimer) lpCancel((evt.view as Window) ?? window);
       },
 
-      // Swallow the synthetic click that follows a long-press so the editor
-      // doesn't also move the cursor after we've already shown the action.
+      // Browser took over the touch (scroll, pinch, system interrupt) — cancel.
+      touchcancel: (evt: TouchEvent) => {
+        if (lpTimer) lpCancel((evt.view as Window) ?? window);
+      },
+
+      // Swallow the synthetic click that follows a completed long-press so the
+      // editor doesn't also reposition the cursor after showing the action.
       click: (evt: MouseEvent) => {
         if (!Platform.isMobile) return;
-        if (lpFired) {
-          lpFired = false;
-          evt.preventDefault();
-        }
+        if (lpFired) { lpFired = false; evt.preventDefault(); }
         // Normal taps fall through — editor handles cursor placement.
       },
 
       pointerover: (evt: PointerEvent) => {
-        if (Platform.isMobile) return; // handled by long-press on mobile
+        if (Platform.isMobile) return; // handled by touch long-press on mobile
         const target = evt.targetNode;
         if (target.instanceOf(HTMLElement)) {
           const citekey = target.dataset.citekey;
