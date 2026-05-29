@@ -204,6 +204,22 @@ export async function getCSLStyle(
   return str;
 }
 
+function httpGetLocal(port: string, urlPath: string): Promise<Buffer> {
+  return new Promise((res, rej) => {
+    const req = request(
+      { host: '127.0.0.1', port, path: urlPath, method: 'GET', headers: defaultHeaders },
+      (result) => {
+        const chunks: Buffer[] = [];
+        result.on('data', (chunk: Buffer) => chunks.push(chunk));
+        result.on('end', () => res(Buffer.concat(chunks)));
+        result.on('error', rej);
+      }
+    );
+    req.on('error', rej);
+    req.end();
+  });
+}
+
 export const defaultHeaders = {
   'Content-Type': 'application/json',
   'User-Agent': 'obsidian/zotero',
@@ -355,8 +371,9 @@ export async function getZBib(
     }
   }
 
-  const bib = await download(
-    `http://127.0.0.1:${port}/better-bibtex/export/library?/${groupId}/library.json`
+  const bib = await httpGetLocal(
+    port,
+    `/better-bibtex/export/library?/${groupId}/library.json`
   );
 
   const str = bib.toString();
@@ -421,18 +438,40 @@ export async function refreshZBib(
 }
 
 export async function isZoteroRunning(port: string = DEFAULT_ZOTERO_PORT) {
-  const p = download(`http://127.0.0.1:${port}/better-bibtex/cayw?probe=true`);
-  const res = await Promise.race([
-    p,
-    new Promise((res) => {
-      getGlobal().setTimeout(() => {
-        res(null);
-        p.destroy();
-      }, 150);
-    }),
-  ]);
+  return new Promise<boolean>((resolve) => {
+    const timer = getGlobal().setTimeout(() => {
+      req.destroy();
+      resolve(false);
+    }, 150);
 
-  return res?.toString() === 'ready';
+    const req = request(
+      {
+        host: '127.0.0.1',
+        port,
+        path: '/better-bibtex/cayw?probe=true',
+        method: 'GET',
+        headers: defaultHeaders,
+      },
+      (result) => {
+        let output = '';
+        result.setEncoding('utf8');
+        result.on('data', (chunk: string) => (output += chunk));
+        result.on('end', () => {
+          getGlobal().clearTimeout(timer);
+          resolve(output === 'ready');
+        });
+        result.on('error', () => {
+          getGlobal().clearTimeout(timer);
+          resolve(false);
+        });
+      }
+    );
+    req.on('error', () => {
+      getGlobal().clearTimeout(timer);
+      resolve(false);
+    });
+    req.end();
+  });
 }
 
 // ─── Native Zotero API (Zotero 7/8, no Better BibTeX required) ───────────────
