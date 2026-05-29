@@ -6,13 +6,8 @@ import ReferenceList from './main';
 import ReactDOM from 'react-dom';
 import React from 'react';
 import { SettingItem } from './settings/SettingItem';
-import AsyncSelect from 'react-select/async';
-import {
-  NoOptionMessage,
-  customSelectStyles,
-  loadCSLLangOptions,
-  loadCSLOptions,
-} from './settings/select.helpers';
+import { SearchSelect } from './settings/SearchSelect';
+import { searchCSL, searchCSLLangs } from './settings/select.helpers';
 import { cslListRaw } from './bib/cslList';
 import { langListRaw } from './bib/cslLangList';
 import { ZoteroPullSetting } from './settings/ZoteroPullSetting';
@@ -176,21 +171,17 @@ export class ReferenceListSettingsTab extends PluginSettingTab {
 
     ReactDOM.render(
       <SettingItem name={t('Citation style')}>
-        <AsyncSelect
-          noOptionsMessage={NoOptionMessage}
+        <SearchSelect
           placeholder={t('Search...')}
-          cacheOptions
-          className="pwc-multiselect"
           defaultValue={defaultStyle}
-          loadOptions={loadCSLOptions}
+          search={searchCSL}
           isClearable
-          onChange={(selection: any) => {
+          onChange={(selection) => {
             this.plugin.settings.cslStyleURL = selection?.value;
             this.plugin.saveSettings(() =>
               this.plugin.bibManager.reinit(false)
             );
           }}
-          styles={customSelectStyles}
         />
       </SettingItem>,
       containerEl.createDiv('pwc-setting-item setting-item')
@@ -257,21 +248,19 @@ export class ReferenceListSettingsTab extends PluginSettingTab {
           </>
         }
       >
-        <AsyncSelect
-          noOptionsMessage={NoOptionMessage}
+        <SearchSelect
           placeholder={t('Search...')}
-          cacheOptions
-          className="pwc-multiselect"
           defaultValue={defaultLanguage}
-          loadOptions={loadCSLLangOptions}
+          search={searchCSLLangs}
           isClearable
-          onChange={(selection: any) => {
-            this.plugin.settings.cslLang = selection.value;
-            this.plugin.saveSettings(() =>
-              this.plugin.bibManager.reinit(false)
-            );
+          onChange={(selection) => {
+            if (selection) {
+              this.plugin.settings.cslLang = selection.value;
+              this.plugin.saveSettings(() =>
+                this.plugin.bibManager.reinit(false)
+              );
+            }
           }}
-          styles={customSelectStyles}
         />
       </SettingItem>,
       containerEl.createDiv('pwc-setting-item setting-item')

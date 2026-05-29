@@ -409,6 +409,82 @@ body {
   width: 95vw;
 }
 
+/* ── SearchSelect component (replaces react-select) ─────────────────────── */
+
+.pwc-search-select {
+  position: relative;
+  width: 320px;
+  font-size: var(--font-ui-small);
+}
+
+.pwc-search-select__control {
+  display: flex;
+  align-items: center;
+  background: var(--background-modifier-form-field);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--input-radius);
+}
+
+.pwc-search-select__control:focus-within {
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 1px var(--interactive-accent);
+}
+
+.pwc-search-select__input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  padding: 4px 8px;
+  outline: none;
+  box-shadow: none !important;
+  height: unset;
+}
+
+.pwc-search-select__clear {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 1.1em;
+  padding: 0 6px;
+  line-height: 1;
+}
+
+.pwc-search-select__clear:hover {
+  color: var(--text-normal);
+}
+
+.pwc-search-select__menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: var(--layer-popover);
+  background: var(--background-modifier-form-field);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--input-radius);
+  max-height: 200px;
+  overflow-y: auto;
+  margin-top: 2px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.pwc-search-select__option {
+  padding: 6px 10px;
+  cursor: pointer;
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+}
+
+.pwc-search-select__option:hover {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+/* ── Sidebar reference filter ────────────────────────────────────────────── */
+
 .pwc-search-wrap {
   padding: 4px 5px 2px;
 }
