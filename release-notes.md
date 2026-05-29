@@ -1,3 +1,8 @@
+## 2.0.38
+
+- **Fix: "undefined" in bibliography path description** — the settings tab was calling `t()` with a string not present in the locale file, causing the description to render as the literal word "undefined". The key is now registered in `en.ts` and the description is updated to clarify that vault-relative paths work on all platforms while absolute paths are desktop-only.
+- **Fix: reference panel missing on Android** — `getRightLeaf(false)` can return `null` on mobile (workspace not fully ready); calling `.setViewState()` on null crashed silently and the panel never appeared. Added a null guard. Also added `onLayoutReady` so the panel is automatically opened on startup if it isn't already present — this restores it on mobile where workspace state isn't always persisted between sessions.
+
 ## 2.0.37
 
 - **Reference list word wrap fix:** long titles, author names, and URLs now wrap correctly at the panel edge instead of overflowing. The fix adds `flex: 1; min-width: 0` to the citation entry element — both are required for text wrapping inside a flex container.

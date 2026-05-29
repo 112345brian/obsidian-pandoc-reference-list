@@ -189,6 +189,12 @@ export default class ReferenceList extends Plugin {
     this.initPromise.resolve();
     this.app.workspace.trigger('parse-style-settings');
 
+    // Open the reference panel if it isn't already present (e.g. first launch,
+    // or mobile where workspace state isn't always persisted between sessions).
+    this.app.workspace.onLayoutReady(() => {
+      if (!this.view) this.initLeaf();
+    });
+
     this.addCommand({
       id: 'focus-reference-list-view',
       name: t('Show reference list'),
@@ -443,9 +449,12 @@ export default class ReferenceList extends Plugin {
   async initLeaf() {
     if (this.view) return this.revealLeaf();
 
-    await this.app.workspace.getRightLeaf(false).setViewState({
-      type: viewType,
-    });
+    // getRightLeaf(false) can return null on mobile or when the workspace
+    // isn't fully ready yet — guard before chaining .setViewState().
+    const leaf = this.app.workspace.getRightLeaf(false);
+    if (!leaf) return;
+
+    await leaf.setViewState({ type: viewType });
 
     this.revealLeaf();
 
