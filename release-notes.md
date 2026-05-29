@@ -1,3 +1,7 @@
+## 2.0.36
+
+- **Hotfix: `child_process` module crash** — Pandoc detection and invocation no longer throws `Failed to resolve module specifier 'child_process'`. esbuild 0.13.x leaves dynamic `import()` of external modules verbatim in the CJS bundle, which Electron's renderer can't resolve as an ES module. Replaced with synchronous `require()` calls, which work correctly in Electron's Node integration.
+
 ## 2.0.35
 
 - **Literature notes folder autocomplete:** typing in the literature notes folder field now shows a dropdown of existing vault folders.

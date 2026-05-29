@@ -1,15 +1,22 @@
 import { Platform } from 'obsidian';
 import { PartialCSLEntry } from './types';
 
-async function execFileAsync(
+// esbuild outputs this file in CJS format where `require` is available at
+// runtime, but TypeScript's project-level `module: ESNext` doesn't declare it.
+// The single declaration below tells TypeScript it exists without affecting
+// esbuild's output.  We use require() instead of dynamic import() because
+// esbuild 0.13.x leaves import() of external modules verbatim in the CJS
+// bundle, which then fails in Electron's renderer (ESM specifier resolution
+// doesn't recognise bare built-in names like 'child_process').
+declare const require: (id: string) => any;
+
+function execFileAsync(
   file: string,
   args: string[],
   options?: { maxBuffer?: number }
 ): Promise<{ stdout: string; stderr: string }> {
-  const [{ execFile }, { promisify }] = await Promise.all([
-    import('child_process'),
-    import('util'),
-  ]);
+  const { execFile } = require('child_process') as typeof import('child_process');
+  const { promisify } = require('util') as typeof import('util');
   return promisify(execFile)(file, args, options);
 }
 
@@ -57,10 +64,16 @@ export async function findPandoc(): Promise<string | null> {
   if (!Platform.isDesktop) return null;
   const platform = globalThis.process?.platform;
 
+  // require() is safe here — findPandoc() is only called on desktop where
+  // Electron's Node integration makes these modules available.
+  const { execFile } = require('child_process') as typeof import('child_process');
+  const { promisify } = require('util') as typeof import('util');
+  const execAsync = promisify(execFile);
+
   // Try `which` / `where` first — works if Pandoc is on the process PATH.
   const cmd = platform === 'win32' ? 'where' : 'which';
   try {
-    const { stdout } = await execFileAsync(cmd, ['pandoc']);
+    const { stdout } = await execAsync(cmd, ['pandoc']);
     const found = stdout.trim().split('\n')[0];
     if (found) return found;
   } catch {
@@ -68,8 +81,8 @@ export async function findPandoc(): Promise<string | null> {
   }
 
   // Common install locations to try directly.
-  // On Windows we resolve %LOCALAPPDATA%, %APPDATA%, %USERPROFILE%, and
-  // %ProgramData% from process.env so the paths work for any user account.
+  // On Windows we resolve %LOCALAPPDATA%, %USERPROFILE%, and %ProgramData%
+  // from process.env so the paths work for any user account.
   const env = (globalThis.process?.env ?? {}) as Record<string, string | undefined>;
 
   const candidates =
@@ -96,12 +109,6 @@ export async function findPandoc(): Promise<string | null> {
           '/usr/bin/pandoc',          // Linux system package
           '/snap/bin/pandoc',         // Snap
         ];
-
-  const [{ execFile }, { promisify }] = await Promise.all([
-    import('child_process'),
-    import('util'),
-  ]);
-  const execAsync = promisify(execFile);
 
   for (const p of candidates) {
     try {
