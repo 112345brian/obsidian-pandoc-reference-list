@@ -1,3 +1,34 @@
+## 2.1.0
+
+### Mobile support
+- **Tap citations in reading mode** to show a bottom-sheet citation card, copy to clipboard, or open the best available link (Zotero → PDF → URL/DOI) — configurable in Settings → Tooltip → "Mobile tap action".
+- **Editor mode: tap to edit, long-press to show citation.** A quick tap places the cursor normally. Holding for ~500 ms shows the citation action. If the cursor is already inside the citekey, holding triggers native word selection instead.
+- **Reference panel now opens automatically on Android** — null-guarded `getRightLeaf` and `onLayoutReady` hook restore the sidebar on mobile where workspace state isn't always persisted.
+- **Larger sidebar text** — reference list entries use `--font-ui-medium` (matches the outline sidebar) instead of a fixed 14 px.
+
+### Bibliography & parser
+- **Pure-JS BibTeX parser** — `@retorquere/bibtex-parser` replaces Pandoc as the default. Pandoc is still accepted as an opt-in for edge cases.
+- **BibTeX parser: recovery passes** — if a field is missing, the parser tries to recover: year from citekey (`smith_2020_title` → 2020), title from humanised citekey, DOI prefix stripping.
+- **Fix: all .bib authors missing on mobile** — `@retorquere/bibtex-parser` v9 moved author arrays to `entry.fields.author`; the parser now reads from there with a fallback for older layouts.
+- **Multi-source merge** — `.bib` file and Zotero load simultaneously; Zotero wins on conflicts.
+
+### Settings & file picking
+- **Bibliography file picker** — type a path with autocomplete (`.bib/.json/.yaml/.yml` files from vault), or tap Browse. On desktop, Browse opens the OS file picker; on mobile it opens a vault fuzzy-search modal.
+- **Literature notes folder autocomplete** — folder suggestions appear as you type.
+- **Relative ↔ absolute path resolution** — vault-relative paths work on all platforms. If you enter an absolute path inside the vault it is normalised to vault-relative on blur. Absolute fallback is tried automatically if the vault has moved.
+- **Windows Pandoc detection** — detects winget (`%LOCALAPPDATA%\Pandoc`), Scoop, and Chocolatey install locations in addition to the existing macOS/Linux paths.
+
+### Editor & UI
+- **Citation decoration** — resolved citekeys highlighted in accent color; `[[@wikilink]]` citations use link color with solid underline; brackets dim to `--text-muted`.
+- **Citekey autocomplete: trigger after 1 character** — suggestions appear after typing just one character past `@` (was 2). Trigger now fires after any non-word character before `@`, not just a narrow whitelist.
+- **Reference list word wrap** — long titles and URLs now wrap correctly at the panel edge.
+- **Tooltip action icons horizontal** — copy/Zotero/PDF buttons appear in a row beneath the citation instead of vertically beside it.
+
+### Fixes
+- **`child_process` module crash fixed** — Pandoc detection no longer throws in Electron's renderer; uses `require()` instead of dynamic `import()`.
+- **"undefined" in bib path description on mobile** fixed.
+- **Zotero settings crash** — opening settings no longer crashes when Zotero is unreachable.
+
 ## 2.0.45
 
 - **Mobile editor: hold-to-select works correctly when cursor is already on a citekey.** In 2.0.44, long-pressing a citation span always showed the citation card — even if your cursor was already placed inside it, where the expected behavior is native word selection. Now, if the editor cursor is already inside the span when you start the hold, the long-press timer is skipped and the OS handles selection normally. Long-pressing a citation span where the cursor is *not* yet placed still shows the citation card after ~500 ms.
