@@ -1,4 +1,5 @@
 import {
+  Editor,
   Events,
   MarkdownView,
   Menu,
@@ -7,6 +8,7 @@ import {
   TFile,
   WorkspaceLeaf,
   debounce,
+  htmlToMarkdown,
   normalizePath,
   setIcon,
 } from 'obsidian';
@@ -172,6 +174,25 @@ export default class ReferenceList extends Plugin {
       name: t('Show reference list'),
       callback: async () => {
         this.initLeaf();
+      },
+    });
+
+    this.addCommand({
+      id: 'insert-bibliography',
+      name: t('Insert bibliography at cursor'),
+      editorCallback: (editor: Editor, view: MarkdownView) => {
+        if (!view.file) return;
+        const cache = this.bibManager.fileCache.get(view.file);
+        if (!cache?.bib) return;
+
+        const entries = cache.bib.findAll('.csl-entry');
+        if (!entries.length) return;
+
+        const text = entries
+          .map((e) => htmlToMarkdown(e.innerHTML).trim())
+          .join('\n\n');
+
+        editor.replaceSelection(text);
       },
     });
 
