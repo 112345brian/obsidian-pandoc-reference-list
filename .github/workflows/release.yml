@@ -22,13 +22,11 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '18.x'
-          cache: 'yarn'
 
       - name: Build plugin
         run: |
-          corepack enable
-          yarn install --frozen-lockfile
-          yarn build
+          npm install
+          npm run build
 
       - name: Determine release tag
         id: tag
