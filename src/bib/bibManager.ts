@@ -23,6 +23,7 @@ import {
   getCitations,
 } from 'src/parser/parser';
 import { Keymap, MarkdownView, TFile, normalizePath, setIcon } from 'obsidian';
+import { getLitNoteForCitekey, isZotLitLoaded } from 'src/zotlit';
 import { cite } from 'src/parser/citeproc';
 import { setCiteKeyCache } from 'src/editorExtension';
 import equal from 'fast-deep-equal';
@@ -33,8 +34,10 @@ const fuseSettings = {
   threshold: 0.35,
   minMatchCharLength: 2,
   keys: [
-    { name: 'id', weight: 0.7 },
-    { name: 'title', weight: 0.3 },
+    { name: 'id', weight: 0.6 },
+    { name: 'title', weight: 0.25 },
+    { name: 'author.family', weight: 0.1 },
+    { name: 'author.literal', weight: 0.05 },
   ],
 };
 
@@ -849,23 +852,17 @@ export class BibManager {
       div.append(e);
 
       if (e.dataset.citekey) {
-        const zLink = this.zCitekeyToLinks.get(e.dataset.citekey);
-        const zPDFLinks = this.zCitekeyToPDFLinks.get(e.dataset.citekey);
-        let linkText = '@' + e.dataset.citekey;
-        let linkDest = app.metadataCache.getFirstLinkpathDest(
-          linkText,
-          file.path
-        );
-        if (!linkDest) {
-          linkText = e.dataset.citekey;
-          linkDest = app.metadataCache.getFirstLinkpathDest(
-            linkText,
-            file.path
-          );
-        }
+        const citekey = e.dataset.citekey;
+        const zLink = this.zCitekeyToLinks.get(citekey);
+        const zPDFLinks = this.zCitekeyToPDFLinks.get(citekey);
+        const hasConflict = this.conflictKeys.has(citekey);
 
-        const hasConflict = this.conflictKeys.has(e.dataset.citekey);
-        if (!linkDest && !zLink && !zPDFLinks && !hasConflict) return;
+        // Use ZotLit's frontmatter-based note index when available; fall back
+        // to filename-based detection for non-ZotLit setups.
+        const litNote = getLitNoteForCitekey(citekey, file.path, app);
+        const canCreateNote = !litNote && !isZotLitLoaded();
+
+        if (!litNote && !zLink && !zPDFLinks && !hasConflict && !canCreateNote) return;
 
         div.createDiv({ cls: 'pwc-entry-btns' }, (div) => {
           if (hasConflict) {
@@ -877,13 +874,21 @@ export class BibManager {
               );
             });
           }
-          if (linkDest) {
+          if (litNote) {
             div.createDiv('clickable-icon', (div) => {
               setIcon(div, 'sticky-note');
               div.setAttr('aria-label', t('Open literature note'));
-              div.onClickEvent((e) => {
-                const newPane = Keymap.isModEvent(e);
-                app.workspace.openLinkText(linkText, file.path, newPane);
+              div.onClickEvent((evt) => {
+                const newPane = Keymap.isModEvent(evt);
+                app.workspace.openLinkText(litNote.linkText, file.path, newPane);
+              });
+            });
+          } else if (canCreateNote) {
+            div.createDiv('clickable-icon', (div) => {
+              setIcon(div, 'lucide-file-plus');
+              div.setAttr('aria-label', t('Create literature note'));
+              div.onClickEvent(async () => {
+                await this.createLiteratureNote(citekey, file);
               });
             });
           }
@@ -912,6 +917,42 @@ export class BibManager {
     });
 
     return parsed;
+  }
+
+  async createLiteratureNote(citekey: string, sourceFile: TFile) {
+    const entry = this.bibCache.get(citekey) as any;
+    const title = entry?.title ?? citekey;
+    const year = entry?.issued?.['date-parts']?.[0]?.[0] ?? '';
+    const authors: string[] = (entry?.author ?? [])
+      .map((a: any) => [a.family, a.given].filter(Boolean).join(', ') || a.literal || '')
+      .filter(Boolean);
+
+    const folder = this.plugin.settings.literatureNoteFolder?.trim() ?? '';
+    const filename = `@${citekey}.md`;
+    const notePath = folder ? normalizePath(`${folder}/${filename}`) : filename;
+
+    if (await app.vault.adapter.exists(notePath)) {
+      await app.workspace.openLinkText(notePath, sourceFile.path, true);
+      return;
+    }
+
+    const frontmatter = [
+      '---',
+      `citekey: ${citekey}`,
+      `title: "${title.replace(/"/g, '\\"')}"`,
+      `year: ${year}`,
+      authors.length ? `authors:\n${authors.map((a) => `  - "${a}"`).join('\n')}` : '',
+      '---',
+    ].filter(Boolean).join('\n');
+
+    const content = `${frontmatter}\n\n# ${title}\n\n`;
+
+    if (folder && !(await app.vault.adapter.exists(normalizePath(folder)))) {
+      await app.vault.adapter.mkdir(normalizePath(folder));
+    }
+
+    await app.vault.create(notePath, content);
+    await app.workspace.openLinkText(notePath, sourceFile.path, true);
   }
 
   dispatchResult(file: TFile, result: FileCache) {

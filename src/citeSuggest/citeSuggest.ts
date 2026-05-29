@@ -11,18 +11,26 @@ import {
 } from 'obsidian';
 import { PartialCSLEntry } from 'src/bib/types';
 import ReferenceList from 'src/main';
+import { isZotLitSuggestActive } from 'src/zotlit';
 
-// ZotLit (plugin ID "zotlit") also registers an EditorSuggest that fires on
-// the bracketed citation context: /[[【]@.../  Its trigger only matches when
-// "[" immediately precedes "@", so it never conflicts with bare @citekey
-// completions. When ZotLit is active we yield the bracketed context to it
-// and keep bare @key suggestions for ourselves.
-export function isZotLitSuggestActive(app: App): boolean {
-  const plugins = (app as any).plugins?.plugins;
-  if (!plugins?.['zotlit']) return false;
-  // Default setting is enabled; only return false when explicitly turned off.
-  const current = plugins['zotlit'].settings?.current;
-  return current ? current.citationEditorSuggester !== false : true;
+// Re-export so settings.tsx can import from one place.
+export { isZotLitSuggestActive };
+
+// Returns a compact metadata string for a CSL entry: "Smith · 2020 · Nature"
+function getEntryMeta(item: PartialCSLEntry): string {
+  const e = item as any;
+  const parts: string[] = [];
+
+  const first = e.author?.[0];
+  if (first) parts.push(first.family ?? first.literal ?? '');
+
+  const year = e.issued?.['date-parts']?.[0]?.[0];
+  if (year) parts.push(String(year));
+
+  const container = e['container-title'];
+  if (container && String(container).length < 50) parts.push(String(container));
+
+  return parts.filter(Boolean).join(' · ');
 }
 
 interface Loading {
@@ -116,6 +124,8 @@ export class CiteSuggest extends EditorSuggest<
       frag.createSpan({ text: `@${item.id}` });
       if (item.title)
         frag.createSpan({ text: item.title, cls: 'pwc-suggest-title' });
+      const meta = getEntryMeta(item);
+      if (meta) frag.createSpan({ text: meta, cls: 'pwc-suggest-meta' });
       return el.setText(frag);
     }
 
@@ -126,6 +136,8 @@ export class CiteSuggest extends EditorSuggest<
     let prevCiteIndex = 0;
 
     sugg.matches.forEach((m) => {
+      // Only highlight citekey (id) and title matches in the visible spans.
+      if (m.key !== 'id' && m.key !== 'title') return;
       m.indices.forEach((indices) => {
         const start = indices[0];
         const stop = indices[1] + 1;
@@ -150,6 +162,9 @@ export class CiteSuggest extends EditorSuggest<
 
     if (item.title) title.appendText(item.title.substring(prevTitleIndex));
     citekey.appendText(item.id.substring(prevCiteIndex));
+
+    const meta = getEntryMeta(item);
+    if (meta) frag.createSpan({ text: meta, cls: 'pwc-suggest-meta' });
 
     el.setText(frag);
   }

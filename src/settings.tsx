@@ -2,7 +2,7 @@ import { Platform, PluginSettingTab, Setting } from 'obsidian';
 
 import { t } from './lang/helpers';
 import { findPandoc } from './bib/pandoc';
-import { isZotLitSuggestActive } from './citeSuggest/citeSuggest';
+import { isZotLitSuggestActive } from './zotlit';
 import ReferenceList from './main';
 import ReactDOM from 'react-dom';
 import React from 'react';
@@ -46,6 +46,7 @@ export interface ReferenceListSettings {
   renderCitationsReadingMode?: boolean;
   renderLinkCitations?: boolean;
 
+  literatureNoteFolder?: string;
   pullFromZotero?: boolean;
   zoteroPort?: string;
   zoteroGroups: ZoteroGroup[];
@@ -213,6 +214,23 @@ export class ReferenceListSettingsTab extends PluginSettingTab {
       </SettingItem>,
       containerEl.createDiv('pwc-setting-item setting-item')
     );
+
+    new Setting(containerEl)
+      .setName(t('Literature notes folder'))
+      .setDesc(
+        t(
+          'Folder where new literature notes are created (vault-relative). Leave blank to create at the vault root. A "Create literature note" button appears on sidebar entries when no note exists. Has no effect when ZotLit is installed — use ZotLit\'s template system instead.'
+        )
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder('Literature Notes')
+          .setValue(this.plugin.settings.literatureNoteFolder ?? '')
+          .onChange((value) => {
+            this.plugin.settings.literatureNoteFolder = value;
+            this.plugin.saveSettings();
+          })
+      );
 
     new Setting(containerEl)
       .setName(t('Hide links in references'))

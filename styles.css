@@ -341,6 +341,15 @@ body {
   padding-top: var(--size-4-1);
 }
 
+.pwc-suggest-meta {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .pwc-suggest-loading-wrapper {
   display: flex;
   position: relative;
