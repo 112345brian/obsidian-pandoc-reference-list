@@ -25,7 +25,6 @@ import {
   getCitationSegments,
   getCitations,
 } from 'src/parser/parser';
-import LRUCache from 'lru-cache';
 import { Keymap, MarkdownView, TFile, setIcon } from 'obsidian';
 import { cite } from 'src/parser/citeproc';
 import { setCiteKeyCache } from 'src/editorExtension';
@@ -161,9 +160,53 @@ function normalizeLocales(locales: string[]) {
   return Object.keys(obj);
 }
 
+class SimpleLRU<K, V> {
+  private max: number;
+  private map = new Map<K, V>();
+  private onDispose?: (value: V) => void;
+
+  constructor(opts: { max: number; dispose?: (value: V) => void }) {
+    this.max = opts.max;
+    this.onDispose = opts.dispose;
+  }
+
+  has(key: K) {
+    return this.map.has(key);
+  }
+
+  get(key: K): V | undefined {
+    if (!this.map.has(key)) return undefined;
+    const val = this.map.get(key)!;
+    // Move to end (most recently used)
+    this.map.delete(key);
+    this.map.set(key, val);
+    return val;
+  }
+
+  set(key: K, value: V) {
+    const isExisting = this.map.has(key);
+    this.map.delete(key);
+    this.map.set(key, value);
+    if (!isExisting && this.map.size > this.max) {
+      const oldest = this.map.keys().next().value!;
+      const oldVal = this.map.get(oldest)!;
+      this.map.delete(oldest);
+      this.onDispose?.(oldVal);
+    }
+  }
+
+  delete(key: K) {
+    this.map.delete(key);
+  }
+
+  clear() {
+    this.map.clear();
+  }
+}
+
 export class BibManager {
   plugin: ReferenceList;
-  fileCache: LRUCache<TFile, FileCache>;
+  fileCache: SimpleLRU<TFile, FileCache>;
   initPromise: PromiseCapability<void>;
 
   langCache: Map<string, string> = new Map();
@@ -181,9 +224,8 @@ export class BibManager {
   constructor(plugin: ReferenceList) {
     this.plugin = plugin;
     this.initPromise = new PromiseCapability();
-    this.fileCache = new LRUCache({
+    this.fileCache = new SimpleLRU({
       max: 10,
-      noDisposeOnSet: true,
       dispose: (cache) => {
         if (cache.settings?.bibliography?.length) {
           for (const bibPath of cache.settings.bibliography) {
