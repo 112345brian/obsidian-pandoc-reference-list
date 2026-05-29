@@ -149,6 +149,11 @@ body {
   gap: var(--size-4-1);
 }
 
+.pwc-conflict-icon {
+  color: var(--color-yellow);
+  opacity: 0.8;
+}
+
 .pwc-reference-list a.footnote-ref {
   vertical-align: super;
 }

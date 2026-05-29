@@ -146,11 +146,21 @@ export default class ReferenceList extends Plugin {
     this.emitter = new Events();
     this.bibManager = new BibManager(this);
     this.initPromise.promise
-      .then(() => {
-        if (this.settings.pullFromZotero) {
-          return this.bibManager.loadAndRefreshGlobalZBib();
-        } else {
-          return this.bibManager.loadGlobalBibFile();
+      .then(async () => {
+        const { settings, bibManager } = this;
+        // Load sources in priority order: .bib first (lower priority),
+        // Zotero on top (higher priority, wins on conflicts).
+        if (settings.pathToBibliography) {
+          await bibManager.loadGlobalBibFile();
+        }
+        if (settings.pullFromZotero) {
+          await bibManager.loadAndRefreshGlobalZBib();
+        }
+        // Build the CSL engine once, after all sources are merged.
+        await bibManager.buildGlobalEngine();
+        // Incremental Zotero refresh runs async after the engine is ready.
+        if (settings.pullFromZotero) {
+          bibManager.refreshGlobalZBib().catch(console.error);
         }
       })
       .finally(() => this.bibManager.initPromise.resolve());
@@ -508,12 +518,14 @@ export default class ReferenceList extends Plugin {
         );
         const cache = this.bibManager.fileCache.get(activeView.file);
 
+        // Only warn about Zotero being unreachable when there is no .bib
+        // fallback and some keys are genuinely unresolved.
         if (
           !bib &&
-          cache?.source === this.bibManager &&
           settings.pullFromZotero &&
+          !settings.pathToBibliography &&
           !(await this.bibManager.isZoteroAvailable()) &&
-          this.bibManager.fileCache.get(activeView.file)?.keys.size
+          cache?.keys.size
         ) {
           view?.setMessage(t('Cannot connect to Zotero'));
         } else {

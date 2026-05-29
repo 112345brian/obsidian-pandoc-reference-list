@@ -23,6 +23,7 @@ This fork combines improvements from several community forks and adds fixes and 
 | **Fix: semicolons inside citation suffixes treated as separators** | this fork |
 | **Feature: filter input in the reference sidebar** | this fork |
 | **Feature: "Insert bibliography at cursor" command** | this fork |
+| **Feature: multi-source merge — .bib + Zotero simultaneously** | this fork |
 
 ### Bug fixes in this fork
 
@@ -43,6 +44,15 @@ In reading mode, citations inside footnotes (`[^1]: see @smith2020`) were silent
 Writing something like `[@smith2020, see also Table 3; cf. Jones]` — where the semicolon is part of a note rather than separating two citations — would create an orphaned second "citation" with no key, causing rendering errors.
 
 **Fix:** The parser now scans ahead from each `;` to check whether an `@` follows before the closing `]`. If one does, the semicolon is a citation separator as before. If not, it is treated as ordinary suffix text. Multi-citation groups like `[@a; @b]` and `[@a; see also @b]` are unaffected.
+
+#### Multi-source merge (.bib + Zotero simultaneously)
+
+Previously you had to choose between Zotero *or* a `.bib` file. Now both load at the same time:
+
+- **Resolution order:** `.bib` file loads first; Zotero merges on top. For any citekey present in both, the Zotero version is used.
+- **Fallback:** If Zotero is unavailable at startup, the `.bib` file covers whatever it can. You only see "Cannot connect to Zotero" if *no* fallback is available.
+- **Cross-group Zotero duplicates:** If the same citationKey appears in multiple Zotero groups, the most recently modified version wins (`dateModified` from the Zotero API).
+- **Conflict indicator:** Entries that exist in both sources show a ⚠ icon in the sidebar. Hovering it confirms that the Zotero version is being used.
 
 ### New features in this fork
 

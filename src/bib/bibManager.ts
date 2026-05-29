@@ -164,8 +164,12 @@ export class BibManager {
   zCitekeyToLinks: Map<string, string> = new Map();
   zCitekeyToPDFLinks: Map<string, string[]> = new Map();
 
+  // Keys loaded from the .bib file — used to detect cross-source conflicts.
+  bibSourceKeys: Set<string> = new Set();
+  // Keys present in both .bib and Zotero (Zotero wins; flagged in the UI).
+  conflictKeys: Set<string> = new Set();
+
   // Vault-relative paths of bib files to watch for changes.
-  // Absolute-path bib files (outside the vault) are not watched.
   private watchedBibPaths: Set<string> = new Set();
 
   constructor(plugin: ReferenceList) {
@@ -179,18 +183,20 @@ export class BibManager {
         const p = normalizePath(file.path);
         if (!this.watchedBibPaths.has(p)) return;
 
-        const globalBib = normalizePath(
-          plugin.settings.pathToBibliography ?? ''
-        );
-        if (p === globalBib) {
-          this.loadGlobalBibFile().then(() => {
-            this.fileCache.clear();
-            plugin.processReferences();
-          });
-        } else {
+        // Reload all global sources (bib first, Zotero on top), rebuild engine.
+        const { settings } = plugin;
+        this.bibCache.clear();
+        this.bibSourceKeys.clear();
+        this.conflictKeys.clear();
+
+        const reload = async () => {
+          if (settings.pathToBibliography) await this.loadGlobalBibFile();
+          if (settings.pullFromZotero) await this.loadGlobalZBib(false);
+          await this.buildGlobalEngine();
           this.fileCache.clear();
           plugin.processReferences();
-        }
+        };
+        reload().catch(console.error);
       })
     );
   }
@@ -198,6 +204,8 @@ export class BibManager {
   destroy() {
     this.fileCache.clear();
     this.watchedBibPaths.clear();
+    this.bibSourceKeys.clear();
+    this.conflictKeys.clear();
     this.langCache.clear();
     this.styleCache.clear();
     this.bibCache.clear();
@@ -206,17 +214,21 @@ export class BibManager {
     this.plugin = null;
   }
 
-  async reinit(clearCache: boolean) {
+  async reinit(clearBibData: boolean) {
     this.initPromise = new PromiseCapability();
     this.fileCache.clear();
-    if (clearCache) this.bibCache.clear();
 
-    if (this.plugin.settings.pullFromZotero) {
-      await this.loadGlobalZBib(false);
-    } else {
-      await this.loadGlobalBibFile(true);
+    if (clearBibData) {
+      this.bibCache.clear();
+      this.bibSourceKeys.clear();
+      this.conflictKeys.clear();
+
+      const { settings } = this.plugin;
+      if (settings.pathToBibliography) await this.loadGlobalBibFile();
+      if (settings.pullFromZotero) await this.loadGlobalZBib(false);
     }
 
+    await this.buildGlobalEngine();
     this.initPromise.resolve();
   }
 
@@ -322,53 +334,29 @@ export class BibManager {
     }
   }
 
-  async loadGlobalBibFile(fromCache?: boolean) {
+  // Load the global .bib file into bibCache tagged as 'bib'.
+  // Does not build the CSL engine — call buildGlobalEngine() after all sources load.
+  async loadGlobalBibFile() {
     const { settings } = this.plugin;
-
     if (!settings.pathToBibliography) return;
-    if (!fromCache || this.bibCache.size === 0) {
-      const bib = await bibToCSL(
-        settings.pathToBibliography,
-        settings.pathToPandoc
-      );
 
-      this.bibCache = new Map();
-
-      // Register vault-relative paths for change watching.
-      const bibNorm = normalizePath(settings.pathToBibliography);
-      if (!isAbsolutePath(settings.pathToBibliography)) {
-        this.watchedBibPaths.add(bibNorm);
-      }
-
-      for (const entry of bib) {
-        this.bibCache.set(entry.id, entry);
-      }
-
-      this.setFuse(bib);
+    let bib: PartialCSLEntry[];
+    try {
+      bib = await bibToCSL(settings.pathToBibliography, settings.pathToPandoc);
+    } catch (e) {
+      console.error('pandoc-reference-list: failed to load .bib file:', e);
+      return;
     }
 
-    const style =
-      settings.cslStylePath ||
-      settings.cslStyleURL ||
-      'https://raw.githubusercontent.com/citation-style-language/styles/master/apa.csl';
-    const lang = settings.cslLang || 'en-US';
+    // Register for change watching (vault-relative only).
+    const bibNorm = normalizePath(settings.pathToBibliography);
+    if (!isAbsolutePath(settings.pathToBibliography)) {
+      this.watchedBibPaths.add(bibNorm);
+    }
 
-    await this.getLangAndStyle(lang, {
-      id: style,
-      explicitPath: settings.cslStylePath,
-    });
-    if (!this.styleCache.has(style)) return;
-
-    try {
-      this.engine = this.buildEngine(
-        lang,
-        this.langCache,
-        style,
-        this.styleCache,
-        this.bibCache
-      );
-    } catch (e) {
-      console.error(e);
+    for (const entry of bib) {
+      this.bibCache.set(entry.id, { ...entry, _source: 'bib' });
+      this.bibSourceKeys.add(entry.id);
     }
   }
 
@@ -386,42 +374,101 @@ export class BibManager {
 
   async loadAndRefreshGlobalZBib() {
     await this.loadGlobalZBib(true);
-    await this.refreshGlobalZBib();
+    // refreshGlobalZBib runs after engine is built by the caller
   }
 
+  // Merge Zotero entries into bibCache (Zotero wins on conflicts with .bib).
+  // Within Zotero, keeps the most recently modified entry when a citationKey
+  // appears in multiple groups. Does not build the CSL engine.
   async loadGlobalZBib(fromCache?: boolean) {
-    const { settings, cacheDir } = this.plugin;
+    const { settings } = this.plugin;
     if (!settings.zoteroGroups?.length) return;
 
     const adapter = this.getZoteroAdapter();
-    const bib: PartialCSLEntry[] = [];
     for (const group of settings.zoteroGroups) {
       try {
-        const res = await adapter.getBib(cacheDir, group.id, fromCache);
-        if (res.list?.length) {
-          bib.push(...res.list);
-          // Only advance lastUpdate when fetched fresh from Zotero.
-          // Loading from cache must not move lastUpdate forward or the
-          // subsequent incremental refresh will miss recently added items.
-          if (!fromCache) {
-            group.lastUpdate = Date.now();
-            group.libraryVersion = res.version;
-          }
+        const res = await adapter.getBib('', group.id, fromCache);
+        if (!res.list?.length) continue;
+
+        if (!fromCache) {
+          group.lastUpdate = Date.now();
+          group.libraryVersion = res.version;
+        }
+
+        for (const entry of res.list) {
+          this.mergeZoteroEntry(entry);
         }
       } catch (e) {
-        console.error('Error fetching bibliography from Zotero', e);
-        continue;
+        console.error('pandoc-reference-list: Zotero load failed:', e);
       }
     }
 
     this.plugin.saveSettings();
+  }
 
-    this.bibCache = new Map();
-    for (const entry of bib) {
-      this.bibCache.set(entry.id, entry);
+  // Merge a single Zotero entry into bibCache with full priority + dedup logic.
+  private mergeZoteroEntry(entry: PartialCSLEntry) {
+    const existing = this.bibCache.get(entry.id);
+    const tagged = { ...entry, _source: 'zotero' as const };
+
+    if (existing?._source === 'zotero') {
+      // Cross-group duplicate — keep whichever was modified more recently.
+      if ((tagged._dateModified ?? '') > (existing._dateModified ?? '')) {
+        this.bibCache.set(entry.id, tagged);
+      }
+      // else keep existing; both from Zotero so no conflict with .bib
+      return;
     }
 
-    this.setFuse(bib);
+    if (existing?._source === 'bib') {
+      // Key exists in both sources — flag it, Zotero wins.
+      this.conflictKeys.add(entry.id);
+    }
+
+    this.bibCache.set(entry.id, tagged);
+  }
+
+  async refreshGlobalZBib() {
+    const { settings } = this.plugin;
+    if (!settings.zoteroGroups?.length) return;
+
+    const adapter = this.getZoteroAdapter();
+    const modifiedEntries: Map<string, PartialCSLEntry> = new Map();
+
+    for (const group of settings.zoteroGroups) {
+      try {
+        const res = await adapter.refreshBib(
+          '',
+          group.id,
+          group.libraryVersion ?? 0,
+          group.lastUpdate
+        );
+
+        if (!res) continue;
+        if (res.list?.length) group.lastUpdate = Date.now();
+
+        for (const [k, v] of res.modified.entries()) {
+          this.mergeZoteroEntry(v);
+          modifiedEntries.set(k, this.bibCache.get(k)!);
+        }
+      } catch (e) {
+        console.error('pandoc-reference-list: Zotero refresh failed:', e);
+      }
+    }
+
+    this.plugin.saveSettings();
+    this.updateFuse(modifiedEntries);
+    this.fileCache.clear();
+    this.plugin.processReferences();
+  }
+
+  // Build (or rebuild) the global CSL engine from the current bibCache.
+  // Must be called after all sources have finished loading.
+  async buildGlobalEngine() {
+    const { settings } = this.plugin;
+
+    // Rebuild the fuse search index from the merged cache.
+    this.setFuse(Array.from(this.bibCache.values()));
 
     const style =
       settings.cslStylePath ||
@@ -446,43 +493,6 @@ export class BibManager {
     } catch (e) {
       console.error(e);
     }
-  }
-
-  async refreshGlobalZBib() {
-    const { settings, cacheDir } = this.plugin;
-    if (!settings.zoteroGroups?.length) return;
-
-    const adapter = this.getZoteroAdapter();
-    const modifiedEntries: Map<string, PartialCSLEntry> = new Map();
-
-    for (const group of settings.zoteroGroups) {
-      try {
-        const res = await adapter.refreshBib(
-          cacheDir,
-          group.id,
-          group.libraryVersion ?? 0,
-          group.lastUpdate
-        );
-
-        if (!res) continue;
-        if (res.list?.length) {
-          group.lastUpdate = Date.now();
-        }
-
-        for (const [k, v] of res.modified.entries()) {
-          modifiedEntries.set(k, v);
-          this.bibCache.set(k, v);
-        }
-      } catch (e) {
-        console.error('Error fetching bibliography from Zotero', e);
-        continue;
-      }
-    }
-
-    this.plugin.saveSettings();
-    this.updateFuse(modifiedEntries);
-    this.fileCache.clear();
-    this.plugin.processReferences();
   }
 
   buildEngine(
@@ -854,9 +864,19 @@ export class BibManager {
           );
         }
 
-        if (!linkDest && !zLink && !zPDFLinks) return;
+        const hasConflict = this.conflictKeys.has(e.dataset.citekey);
+        if (!linkDest && !zLink && !zPDFLinks && !hasConflict) return;
 
         div.createDiv({ cls: 'pwc-entry-btns' }, (div) => {
+          if (hasConflict) {
+            div.createDiv('clickable-icon pwc-conflict-icon', (div) => {
+              setIcon(div, 'lucide-alert-triangle');
+              div.setAttr(
+                'aria-label',
+                t('This entry exists in both your .bib file and Zotero. Zotero data is shown.')
+              );
+            });
+          }
           if (linkDest) {
             div.createDiv('clickable-icon', (div) => {
               setIcon(div, 'sticky-note');

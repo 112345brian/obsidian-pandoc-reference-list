@@ -38,8 +38,9 @@
 - [2025-05-29] `execa` removed — `child_process.execFile` via `util.promisify` covers the single pandoc invocation; `execa` was multi-MB for one call
 - [2025-05-29] `download` removed — replaced with `node:http` requests already present in the file for Zotero JSON-RPC; `download` was only used for two HTTP GETs
 - [2025-05-29] `react-select` removed — replaced with a minimal `SearchSelect` Preact component; `react-select` was ~70 KB minified for two dropdowns
-- [2025-05-29] Pandoc removed — replaced with `@retorquere/bibtex-parser` (pure JS); enables mobile and removes the binary dependency entirely
+- [2025-05-29] Pandoc optional — replaced with `@retorquere/bibtex-parser` (pure JS) as default; Pandoc path still accepted as opt-in for edge cases
 - [2025-05-29] All `node:` modules removed — `vault.adapter` + `FileSystemAdapter.readLocalFile` + `requestUrl` cover every use case; `isDesktopOnly` flipped to false
+- [2025-05-29] Multi-source merge — .bib and Zotero now load simultaneously; Zotero wins on conflicts; cross-group Zotero duplicates resolved by `_dateModified`
 
 ## TODO
 - [ ] Semicolons in citation prefixes/suffixes still sometimes mis-parse if the suffix itself contains `@` (edge case of the lookahead fix)

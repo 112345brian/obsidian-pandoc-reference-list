@@ -140,5 +140,8 @@ export function zoteroItemToCSL(item: any, groupId: number): PartialCSLEntry | n
   if (data.conferenceName) csl['event-title'] = data.conferenceName;
   if (data.section) csl.section = data.section;
 
+  // Internal metadata — not a CSL field, used for cross-group deduplication.
+  if (data.dateModified) csl._dateModified = data.dateModified;
+
   return csl as PartialCSLEntry;
 }
