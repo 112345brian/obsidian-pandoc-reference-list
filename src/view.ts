@@ -64,6 +64,22 @@ export class ReferenceListView extends ItemView {
           });
         }
       );
+
+      if (count > 1) {
+        const searchWrap = this.contentEl.createDiv({ cls: 'pwc-search-wrap' });
+        const input = searchWrap.createEl('input', {
+          cls: 'pwc-search-input',
+          attr: { type: 'search', placeholder: t('Filter references…') },
+        });
+        input.addEventListener('input', () => {
+          const q = input.value.toLowerCase().trim();
+          bib.findAll('.csl-entry-wrapper').forEach((wrapper) => {
+            const visible = !q || (wrapper.textContent ?? '').toLowerCase().includes(q);
+            (wrapper as HTMLElement).style.display = visible ? '' : 'none';
+          });
+        });
+      }
+
       this.contentEl.append(bib);
     } else if (!bib) {
       this.setNoContentMessage();

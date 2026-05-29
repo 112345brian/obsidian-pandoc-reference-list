@@ -408,3 +408,24 @@ body {
   max-width: 500px;
   width: 95vw;
 }
+
+.pwc-search-wrap {
+  padding: 4px 5px 2px;
+}
+
+.pwc-search-input {
+  width: 100%;
+  font-size: var(--font-ui-small);
+  background: var(--background-modifier-form-field);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--input-radius);
+  color: var(--text-normal);
+  padding: 3px 6px;
+  box-sizing: border-box;
+}
+
+.pwc-search-input:focus {
+  outline: none;
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 1px var(--interactive-accent);
+}
