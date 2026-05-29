@@ -110,6 +110,17 @@ body {
   font-size: var(--font-ui-smaller);
 }
 
+.pwc-reference-list__unresolved-count {
+  color: var(--text-on-accent);
+  display: flex;
+  padding: var(--size-4-1) var(--size-4-2);
+  border-radius: var(--tag-radius);
+  background-color: var(--text-error);
+  font-weight: var(--font-normal);
+  line-height: 1;
+  font-size: var(--font-ui-smaller);
+}
+
 .pwc-no-content {
   font-size: var(--pwc-font-size);
   padding: 0 5px;
@@ -492,7 +503,8 @@ body {
   font-size: var(--font-ui-small);
 }
 
-.pwc-search-select__option:hover {
+.pwc-search-select__option:hover,
+.pwc-search-select__option.is-active {
   background: var(--interactive-accent);
   color: var(--text-on-accent);
 }

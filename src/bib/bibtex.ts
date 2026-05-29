@@ -66,14 +66,14 @@ function getExt(filePath: string): string {
 
 export function parseBibTeX(raw: string): PartialCSLEntry[] {
   const options: BibTeXParser.ParserOptions = {
-    errorHandler: (err) => {
+    errorHandler: (err: unknown) => {
       console.warn('bripey-citation-suite: BibTeX parse warning:', err);
     },
   };
 
   const parsed = BibTeXParser.parse(raw, options) as BibTeXParser.Bibliography;
 
-  parsed.errors.forEach((e) => {
+  parsed.errors.forEach((e: { line: number; column: number; message: string }) => {
     console.error(
       `bripey-citation-suite: BibTeX parse error (line ${e.line}, col ${e.column}):`,
       e.message

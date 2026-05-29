@@ -27,6 +27,16 @@ export async function copyElToClipboard(el: HTMLElement) {
   await navigator.clipboard?.writeText(text);
 }
 
+export async function copyTextToClipboard(text: string) {
+  if (Platform.isDesktop) {
+    const { clipboard } = await import('electron');
+    clipboard.writeText(text);
+    return;
+  }
+
+  await navigator.clipboard?.writeText(text);
+}
+
 export class PromiseCapability<T> {
   settled = false;
   promise: Promise<T>;

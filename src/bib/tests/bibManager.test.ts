@@ -6,6 +6,25 @@ jest.mock(
     FileSystemAdapter: { readLocalFile: jest.fn() },
     Keymap: { isModEvent: jest.fn(() => false) },
     MarkdownView: class MarkdownView {},
+    Menu: class Menu {
+      addItem(callback: any) {
+        callback({
+          setTitle() {
+            return this;
+          },
+          setIcon() {
+            return this;
+          },
+          onClick() {
+            return this;
+          },
+        });
+        return this;
+      }
+      showAtMouseEvent() {
+        return this;
+      }
+    },
     Platform: { isDesktop: false },
     TFile: class TFile {},
     htmlToMarkdown: (html: string) => html.replace(/<[^>]+>/g, ''),
@@ -21,6 +40,8 @@ jest.mock('../bibtex', () => ({
 }));
 
 import { BibManager } from '../bibManager';
+import { bibPathsToCSL } from '../helpers';
+import { parseBibFile } from '../bibtex';
 import { ZOTERO_TYPE_TO_CSL, zoteroItemToCSL } from '../zotero-csl';
 import { SimpleLRU } from '../lru';
 import { locales, styles } from 'src/parser/tests/styles';
@@ -94,6 +115,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   document.body.innerHTML = '';
+  (parseBibFile as jest.Mock).mockReset();
 
   (global as any).app = {
     metadataCache: {
@@ -191,6 +213,29 @@ describe('SimpleLRU', () => {
     lru.clear();
     expect(lru.has('a')).toBe(false);
     expect(lru.has('b')).toBe(false);
+  });
+});
+
+// ─── BibTeX multi-file loading ──────────────────────────────────────────────
+
+describe('bibPathsToCSL()', () => {
+  it('concatenates multiple BibTeX files before parsing so @string macros can cross file boundaries', async () => {
+    (global.app.vault.adapter.exists as jest.Mock).mockResolvedValue(true);
+    (global.app.vault.adapter.read as jest.Mock).mockImplementation(
+      async (path: string) =>
+        path === 'strings.bib'
+          ? '@string{IEEE = "IEEE Transactions on Testing"}'
+          : '@article{smith2020, journal = IEEE}'
+    );
+    (parseBibFile as jest.Mock).mockReturnValue([{ id: 'smith2020' }]);
+
+    const result = await bibPathsToCSL(['strings.bib', 'refs.bib']);
+
+    expect(result).toEqual([{ id: 'smith2020' }]);
+    expect(parseBibFile).toHaveBeenCalledWith(
+      '@string{IEEE = "IEEE Transactions on Testing"}\n\n@article{smith2020, journal = IEEE}',
+      'strings.bib'
+    );
   });
 });
 
@@ -358,6 +403,45 @@ describe('BibManager CSL rendering pipeline', () => {
     expect(cache.keys).toEqual(new Set(['smith2020']));
     expect(cache.bib).toBeNull();
     expect(cache.citations).toEqual([]);
+  });
+
+  it('can abort before caching stale reference results', async () => {
+    const { manager } = makeManager(entries);
+    const file = makeFile();
+
+    const bib = await manager.getReferenceList(
+      file,
+      'Known [@smith2020].',
+      () => false
+    );
+
+    expect(bib).toBeUndefined();
+    expect(manager.fileCache.has(file)).toBe(false);
+  });
+
+  it('scrolls from a sidebar entry to the first exact citekey occurrence', async () => {
+    const { manager, plugin } = makeManager(entries);
+    const file = makeFile();
+    const pos = { line: 0, ch: 14 };
+    const editor = {
+      getValue: jest.fn(() => 'Other [@smith2020a]\nTarget [@smith2020].'),
+      offsetToPos: jest.fn(() => pos),
+      setCursor: jest.fn(),
+      scrollIntoView: jest.fn(),
+      focus: jest.fn(),
+    };
+    const view = { file, editor };
+    plugin.app.workspace.getLeavesOfType = jest.fn(() => [{ view }]);
+
+    await manager.scrollToCitation('smith2020', file);
+
+    expect(editor.offsetToPos).toHaveBeenCalledWith(28);
+    expect(editor.setCursor).toHaveBeenCalledWith(pos);
+    expect(editor.scrollIntoView).toHaveBeenCalledWith(
+      { from: pos, to: pos },
+      true
+    );
+    expect(editor.focus).toHaveBeenCalled();
   });
 
   it('replaces stale scoped bibliography watch paths when frontmatter changes', () => {

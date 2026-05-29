@@ -124,7 +124,9 @@ export default class ReferenceList extends Plugin {
   emitter: Events;
   tooltipManager: TooltipManager;
   bibManager: BibManager;
+  cacheDir = '.pandoc';
   _initPromise: PromiseCapability<void>;
+  private processReferencesRun = 0;
 
   get initPromise() {
     if (!this._initPromise) {
@@ -491,6 +493,8 @@ export default class ReferenceList extends Plugin {
   );
 
   processReferences = async () => {
+    const run = ++this.processReferencesRun;
+    const isCurrent = () => run === this.processReferencesRun;
     const { settings, view } = this;
     const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
     const scopedSettings = activeView
@@ -512,10 +516,13 @@ export default class ReferenceList extends Plugin {
     if (activeView) {
       try {
         const fileContent = await this.app.vault.cachedRead(activeView.file);
+        if (!isCurrent()) return;
         const bib = await this.bibManager.getReferenceList(
           activeView.file,
-          fileContent
+          fileContent,
+          isCurrent
         );
+        if (!isCurrent()) return;
         const cache = this.bibManager.fileCache.get(activeView.file);
 
         // Only warn about Zotero being unreachable when there is no .bib
@@ -525,6 +532,7 @@ export default class ReferenceList extends Plugin {
           settings.pullFromZotero &&
           !settings.pathToBibliography &&
           !(await this.bibManager.isZoteroAvailable()) &&
+          isCurrent() &&
           cache?.keys.size
         ) {
           view?.setMessage(t('Cannot connect to Zotero'));

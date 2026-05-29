@@ -4,6 +4,7 @@ import type ReferenceList from 'src/main';
 import { PartialCSLEntry } from './types';
 import Fuse from 'fuse.js';
 import {
+  bibPathsToCSL,
   bibToCSL,
   getCSLLocale,
   getCSLStyle,
@@ -16,13 +17,14 @@ import { SimpleLRU } from './lru';
 import {
   PromiseCapability,
   copyElToClipboard,
+  copyTextToClipboard,
 } from 'src/helpers';
 import {
   RenderedCitation,
   getCitationSegments,
   getCitations,
 } from 'src/parser/parser';
-import { Keymap, MarkdownView, TFile, normalizePath, setIcon } from 'obsidian';
+import { Keymap, MarkdownView, Menu, TFile, normalizePath, setIcon } from 'obsidian';
 import { getLitNoteForCitekey, isZotLitLoaded } from 'src/zotlit';
 import { cite } from 'src/parser/citeproc';
 import { setCiteKeyCache } from 'src/editorExtension';
@@ -302,12 +304,10 @@ export class BibManager {
 
     if (settings.bibliography?.length) {
       try {
-        const bib: PartialCSLEntry[] = [];
-        for (const bibPath of settings.bibliography) {
-          bib.push(
-            ...(await bibToCSL(bibPath, this.plugin.settings.pathToPandoc))
-          );
-        }
+        const bib = await bibPathsToCSL(
+          settings.bibliography,
+          this.plugin.settings.pathToPandoc
+        );
         bibCache = new Map();
 
         for (const entry of bib) {
@@ -635,9 +635,15 @@ export class BibManager {
     return el;
   }
 
-  async getReferenceList(file: TFile, content: string) {
+  async getReferenceList(
+    file: TFile,
+    content: string,
+    shouldContinue: () => boolean = () => true
+  ) {
     await this.plugin.initPromise.promise;
+    if (!shouldContinue()) return undefined;
     await this.initPromise.promise;
+    if (!shouldContinue()) return undefined;
 
     const segs = getCitationSegments(
       content,
@@ -670,6 +676,7 @@ export class BibManager {
       cachedDoc?.source && areSettingsEqual
         ? cachedDoc.source
         : await this.loadScopedEngine(settings);
+    if (!shouldContinue()) return undefined;
 
     this.updateScopedWatchedBibPaths(file, settings);
 
@@ -719,6 +726,7 @@ export class BibManager {
     // source.engine.updateItems(Array.from(resolvedKeys));
 
     const citations = cite(source.engine, filtered);
+    if (!shouldContinue()) return undefined;
 
     if (
       cachedDoc &&
@@ -757,6 +765,7 @@ export class BibManager {
         !settings?.bibliography?.length
       ) {
         await this.getZLinksForKeys(resolvedKeys);
+        if (!shouldContinue()) return undefined;
       }
       parsed = this.prepBibHTML(parsed, file);
     }
@@ -841,17 +850,36 @@ export class BibManager {
     }
 
     parsed?.findAll('.csl-entry').forEach((e) => {
-      if (!inTooltip) {
-        e.setAttribute('aria-label', t('Click to copy'));
-        e.onClickEvent(() => copyElToClipboard(e));
-      }
-
       const div = createDiv({ cls: 'csl-entry-wrapper' });
       e.parentElement.insertBefore(div, e);
       div.append(e);
 
       if (e.dataset.citekey) {
         const citekey = e.dataset.citekey;
+        if (!inTooltip) {
+          e.setAttribute('aria-label', t('Click to jump to citation'));
+          e.onClickEvent(() => {
+            this.scrollToCitation(citekey, file).catch(console.error);
+          });
+          e.oncontextmenu = (evt) => {
+            evt.preventDefault();
+            new Menu()
+              .addItem((item) =>
+                item
+                  .setTitle(t('Copy citekey'))
+                  .setIcon('lucide-copy')
+                  .onClick(() => copyTextToClipboard(`@${citekey}`))
+              )
+              .addItem((item) =>
+                item
+                  .setTitle(t('Copy reference'))
+                  .setIcon('lucide-copy')
+                  .onClick(() => copyElToClipboard(e))
+              )
+              .showAtMouseEvent(evt);
+          };
+        }
+
         const zLink = this.zCitekeyToLinks.get(citekey);
         const zPDFLinks = this.zCitekeyToPDFLinks.get(citekey);
         const hasConflict = this.conflictKeys.has(citekey);
@@ -918,6 +946,36 @@ export class BibManager {
     return parsed;
   }
 
+  async scrollToCitation(citekey: string, sourceFile: TFile) {
+    const escaped = citekey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const citekeyPattern = new RegExp(`@${escaped}\\b`);
+    let targetView: MarkdownView | null = null;
+
+    this.plugin.app.workspace.getLeavesOfType('markdown').forEach((leaf) => {
+      const view = leaf.view as MarkdownView;
+      if (view.file === sourceFile) {
+        targetView = view;
+      }
+    });
+
+    if (!targetView) {
+      await this.plugin.app.workspace.openLinkText(sourceFile.path, '', false);
+      targetView =
+        this.plugin.app.workspace.getActiveViewOfType(MarkdownView) ?? null;
+    }
+
+    if (!targetView?.editor) return;
+
+    const editor = targetView.editor;
+    const offset = editor.getValue().search(citekeyPattern);
+    if (offset < 0) return;
+
+    const pos = editor.offsetToPos(offset);
+    editor.setCursor(pos);
+    editor.scrollIntoView({ from: pos, to: pos }, true);
+    editor.focus();
+  }
+
   async createLiteratureNote(citekey: string, sourceFile: TFile) {
     const entry = this.bibCache.get(citekey) as any;
     const title = entry?.title ?? citekey;
@@ -974,7 +1032,8 @@ export class BibManager {
     app.workspace.getLeavesOfType('markdown').forEach((l) => {
       const view = l.view as MarkdownView;
       if (view.file === file) {
-        const renderer = (view.previewMode as any).renderer;
+        const previewMode = (view as any).previewMode;
+        const renderer = previewMode?.renderer;
         if (renderer) {
           renderer.lastText = null;
           for (const section of renderer.sections) {
@@ -987,6 +1046,10 @@ export class BibManager {
             }
           }
           renderer.queueRender();
+        } else if (typeof previewMode?.rerender === 'function') {
+          previewMode.rerender(true);
+        } else if (typeof (view as any).onMarkdownFold === 'function') {
+          (view as any).onMarkdownFold();
         }
 
         const cm = (view.editor as any).cm as EditorView;

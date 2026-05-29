@@ -25,6 +25,11 @@ export class ReferenceListView extends ItemView {
   setViewContent(bib: HTMLElement) {
     if (bib && this.contentEl.firstChild !== bib) {
       let count = 0;
+      const activeView = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+      const unresolvedCount = activeView?.file
+        ? this.plugin.bibManager.fileCache.get(activeView.file)?.unresolvedKeys
+            .size ?? 0
+        : 0;
       bib.findAll('.csl-entry').forEach((e) => {
         count++;
         const leafRoot = this.leaf.getRoot();
@@ -47,6 +52,15 @@ export class ReferenceListView extends ItemView {
               div.createDiv({
                 cls: 'pwc-reference-list__count',
                 text: count.toString(),
+              });
+            }
+            if (unresolvedCount) {
+              div.createDiv({
+                cls: 'pwc-reference-list__unresolved-count',
+                text: unresolvedCount.toString(),
+                attr: {
+                  'aria-label': t('Unresolved citations'),
+                },
               });
             }
             div.createDiv(

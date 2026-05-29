@@ -75,6 +75,26 @@ export async function bibToCSL(
   return parseBibFile(raw, resolved);
 }
 
+export async function bibPathsToCSL(
+  bibPaths: string[],
+  pathToPandoc?: string
+): Promise<PartialCSLEntry[]> {
+  const resolved = await Promise.all(bibPaths.map((path) => getBibPath(path)));
+  const ext = (path: string) => (path.split('.').pop() ?? '').toLowerCase();
+  const allBib = resolved.every((path) => ['bib', 'bibtex'].includes(ext(path)));
+
+  if (allBib) {
+    const raw = (await Promise.all(resolved.map(readFileText))).join('\n\n');
+    return parseBibFile(raw, resolved[0]);
+  }
+
+  const entries: PartialCSLEntry[] = [];
+  for (const bibPath of bibPaths) {
+    entries.push(...(await bibToCSL(bibPath, pathToPandoc)));
+  }
+  return entries;
+}
+
 // ─── CSL locale + style caching ─────────────────────────────────────────────
 
 const CACHE_DIR = normalizePath('.pandoc');
@@ -323,16 +343,22 @@ async function fetchAllZoteroItemsNative(
   const allItems: any[] = [];
   let libraryVersion = 0;
   const sinceParam = since !== undefined ? `&since=${since}` : '';
+  let hasMore = true;
 
-  while (true) {
+  while (hasMore) {
     const { data, version } = await zoteroNativeGet(
       port,
       `/api/${libraryType}/${libraryId}/items?format=json&itemType=-attachment&limit=${limit}&start=${start}${sinceParam}`
     );
     libraryVersion = version;
-    if (!Array.isArray(data) || data.length === 0) break;
+    if (!Array.isArray(data) || data.length === 0) {
+      hasMore = false;
+      continue;
+    }
     allItems.push(...data);
-    if (data.length < limit) break;
+    if (data.length < limit) {
+      hasMore = false;
+    }
     start += limit;
   }
 

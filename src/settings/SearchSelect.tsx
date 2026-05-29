@@ -27,10 +27,18 @@ export function SearchSelect({
   const [inputVal, setInputVal] = React.useState(defaultValue?.label ?? '');
   const [options, setOptions] = React.useState<SelectOption[]>([]);
   const [isOpen, setIsOpen] = React.useState(false);
+  const [activeIndex, setActiveIndex] = React.useState(-1);
   const [selected, setSelected] = React.useState<SelectOption | null>(
     defaultValue ?? null
   );
   const dbRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const menuId = React.useId();
+
+  const openOptions = (results: SelectOption[]) => {
+    setOptions(results);
+    setIsOpen(results.length > 0);
+    setActiveIndex(results.length > 0 ? 0 : -1);
+  };
 
   const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -39,12 +47,10 @@ export function SearchSelect({
     if (val.length >= 1) {
       dbRef.current = setTimeout(() => {
         const results = search(val).slice(0, 20);
-        setOptions(results);
-        setIsOpen(results.length > 0);
+        openOptions(results);
       }, 150);
     } else {
-      setOptions([]);
-      setIsOpen(false);
+      openOptions([]);
     }
   };
 
@@ -53,6 +59,7 @@ export function SearchSelect({
     setInputVal(opt.label);
     setOptions([]);
     setIsOpen(false);
+    setActiveIndex(-1);
     onChange(opt);
   };
 
@@ -62,7 +69,31 @@ export function SearchSelect({
     setInputVal('');
     setOptions([]);
     setIsOpen(false);
+    setActiveIndex(-1);
     onChange(null);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!options.length) return;
+      setIsOpen(true);
+      setActiveIndex((idx) => {
+        const next =
+          e.key === 'ArrowDown'
+            ? (idx + 1 + options.length) % options.length
+            : (idx - 1 + options.length) % options.length;
+        return next;
+      });
+    } else if (e.key === 'Enter') {
+      if (isOpen && activeIndex >= 0 && options[activeIndex]) {
+        e.preventDefault();
+        handleSelect(options[activeIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      setIsOpen(false);
+      setActiveIndex(-1);
+    }
   };
 
   return (
@@ -74,13 +105,29 @@ export function SearchSelect({
           value={inputVal}
           placeholder={placeholder}
           onChange={handleInput}
+          onKeyDown={handleKeyDown}
           onFocus={() => {
-            if (options.length) setIsOpen(true);
+            if (options.length) {
+              setIsOpen(true);
+              setActiveIndex((idx) => (idx >= 0 ? idx : 0));
+            }
           }}
           onBlur={() => {
             // Delay close so onMouseDown on an option fires first
-            setTimeout(() => setIsOpen(false), 200);
+            setTimeout(() => {
+              setIsOpen(false);
+              setActiveIndex(-1);
+            }, 200);
           }}
+          role="combobox"
+          aria-expanded={isOpen}
+          aria-controls={menuId}
+          aria-autocomplete="list"
+          aria-activedescendant={
+            isOpen && activeIndex >= 0
+              ? `${menuId}-option-${activeIndex}`
+              : undefined
+          }
         />
         {isClearable && selected && (
           <button
@@ -93,11 +140,17 @@ export function SearchSelect({
         )}
       </div>
       {isOpen && (
-        <div className="pwc-search-select__menu">
-          {options.map((opt) => (
+        <div id={menuId} className="pwc-search-select__menu" role="listbox">
+          {options.map((opt, index) => (
             <div
               key={opt.value}
-              className="pwc-search-select__option"
+              id={`${menuId}-option-${index}`}
+              className={`pwc-search-select__option${
+                index === activeIndex ? ' is-active' : ''
+              }`}
+              role="option"
+              aria-selected={index === activeIndex}
+              onMouseEnter={() => setActiveIndex(index)}
               onMouseDown={() => handleSelect(opt)}
             >
               {opt.label}

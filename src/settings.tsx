@@ -135,9 +135,12 @@ export class ReferenceListSettingsTab extends PluginSettingTab {
       containerEl.createDiv('setting-item pwc-setting-item-wrapper')
     );
 
-    const defaultStyle = cslListRaw.find(
-      (item) => item.value === this.plugin.settings.cslStyleURL
-    );
+    const configuredStyle = this.plugin.settings.cslStyleURL;
+    const defaultStyle =
+      cslListRaw.find((item) => item.value === configuredStyle) ||
+      (configuredStyle
+        ? { value: configuredStyle, label: configuredStyle }
+        : undefined);
 
     ReactDOM.render(
       <SettingItem name={t('Citation style')}>

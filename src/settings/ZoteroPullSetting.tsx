@@ -97,7 +97,7 @@ export function ZoteroPullSetting({ plugin }: { plugin: ReferenceList }) {
             name={t('Cannot connect to Zotero')}
             description={t('Start Zotero and try again.')}
           >
-            <button onClick={pullUserGroups} className="mod-cta">
+            <button onClick={() => pullUserGroups()} className="mod-cta">
               Retry
             </button>
           </SettingItem>
