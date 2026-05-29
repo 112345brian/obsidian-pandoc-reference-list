@@ -32,6 +32,10 @@ A citation management plugin for Obsidian. Displays a formatted reference sideba
 
 See [release-notes.md](release-notes.md) for a full version history.
 
+## Why the rename?
+
+The upstream plugin is called "Pandoc Reference List" — but this fork no longer requires Pandoc, so the name felt wrong. It takes heavily from the [Citations plugin](https://github.com/hans/obsidian-citation-plugin) lineage, so "citation suite" made sense. And since my name is Bri, and this project is pretty squarely mine at this point — it's the **Bripey Citation Suite**.
+
 ## Credits
 
 Original plugin by [mgmeyers](https://github.com/mgmeyers/obsidian-pandoc-reference-list), maintained by [obsidian-community](https://github.com/obsidian-community/obsidian-pandoc-reference-list). All the real work is theirs.
