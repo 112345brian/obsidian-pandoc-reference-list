@@ -1,3 +1,9 @@
+## 2.0.39
+
+- **Bibliography file picker:** the path-to-bibliography field now has two ways to select a file without typing:
+  - **Autocomplete (all platforms):** typing in the field shows a filtered dropdown of `.bib`, `.json`, `.yaml`, and `.yml` files from your vault.
+  - **Browse button (desktop):** a folder-open icon button opens your OS file picker (Finder, Explorer, etc.). Selecting a file fills in the path and auto-normalises it to vault-relative if the file lives inside the vault.
+
 ## 2.0.38
 
 - **Fix: "undefined" in bibliography path description** — the settings tab was calling `t()` with a string not present in the locale file, causing the description to render as the literal word "undefined". The key is now registered in `en.ts` and the description is updated to clarify that vault-relative paths work on all platforms while absolute paths are desktop-only.

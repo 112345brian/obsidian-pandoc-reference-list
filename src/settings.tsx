@@ -11,6 +11,7 @@ import { SettingItem } from './settings/SettingItem';
 import { SearchSelect } from './settings/SearchSelect';
 import { searchCSL, searchCSLLangs } from './settings/select.helpers';
 import { FolderSuggest } from './settings/FolderSuggest';
+import { BibFileSuggest } from './settings/BibFileSuggest';
 import { cslListRaw } from './bib/cslList';
 import { langListRaw } from './bib/cslLangList';
 import { ZoteroPullSetting } from './settings/ZoteroPullSetting';
@@ -122,7 +123,10 @@ export class ReferenceListSettingsTab extends PluginSettingTab {
         )
       )
       .then((setting) => {
+        let inputEl: HTMLInputElement;
+
         setting.addText((text) => {
+          inputEl = text.inputEl;
           text
             .setValue(this.plugin.settings.pathToBibliography ?? '')
             .onChange((value) => {
@@ -131,6 +135,9 @@ export class ReferenceListSettingsTab extends PluginSettingTab {
                 this.plugin.bibManager.reinit(true)
               );
             });
+
+          // Vault-file autocomplete — works on all platforms.
+          new BibFileSuggest(this.app, text.inputEl);
 
           // On blur, resolve the path and normalise it to the canonical form.
           // For example, an absolute path inside the vault becomes vault-relative.
@@ -149,6 +156,36 @@ export class ReferenceListSettingsTab extends PluginSettingTab {
             }
           });
         });
+
+        // Desktop only: native file-system picker via a hidden <input type="file">.
+        // In Electron, File objects expose a `.path` property with the absolute
+        // OS path, so no Electron API imports are needed.
+        if (Platform.isDesktop) {
+          setting.addExtraButton((btn) => {
+            btn.setIcon('folder-open').setTooltip(t('Browse…'));
+            btn.onClick(() => {
+              const fileInput = document.createElement('input');
+              fileInput.type = 'file';
+              fileInput.accept = '.bib,.json,.yaml,.yml';
+              fileInput.onchange = async () => {
+                const file = fileInput.files?.[0];
+                // In Electron the File object has a non-standard `.path` property.
+                const fsPath: string | undefined = (file as any)?.path;
+                if (!fsPath) return;
+
+                // Normalise immediately (absolute → vault-relative when inside vault).
+                let resolved = fsPath;
+                try { resolved = await getBibPath(fsPath); } catch { /* keep absolute */ }
+
+                inputEl.value = resolved;
+                inputEl.dispatchEvent(new Event('input')); // save via onChange
+                this.plugin.settings.pathToBibliography = resolved;
+                this.plugin.saveSettings(() => this.plugin.bibManager.reinit(true));
+              };
+              fileInput.click();
+            });
+          });
+        }
       });
 
     ReactDOM.render(
