@@ -1,3 +1,7 @@
+## 2.0.40
+
+- **Browse button now works on mobile:** on Android/iOS the OS file picker can't return a stable file-system path (it gives a content URI or sandboxed temp path). Instead, tapping Browse opens a fuzzy-search vault file picker modal — the same files as the autocomplete, but in a full modal for easier browsing on a touch screen. Desktop keeps the native OS file picker.
+
 ## 2.0.39
 
 - **Bibliography file picker:** the path-to-bibliography field now has two ways to select a file without typing:

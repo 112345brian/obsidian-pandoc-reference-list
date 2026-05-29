@@ -1,4 +1,4 @@
-import { Platform, PluginSettingTab, Setting } from 'obsidian';
+import { FuzzySuggestModal, Platform, PluginSettingTab, Setting, TFile } from 'obsidian';
 
 import { t } from './lang/helpers';
 import { findPandoc } from './bib/pandoc';
@@ -61,6 +61,36 @@ export interface ReferenceListSettings {
    * Better BibTeX does not need to be installed when this is enabled.
    */
   useNativeZoteroAPI?: boolean;
+}
+
+const BIB_EXTENSIONS = new Set(['bib', 'json', 'yaml', 'yml']);
+
+/**
+ * Mobile vault file picker — opens a fuzzy-search modal over all vault files
+ * with bibliography-compatible extensions. Calls `onChoose` with the selected
+ * vault-relative path. Used as the browse-button action on mobile where the
+ * OS file picker can't return a stable file-system path.
+ */
+class BibFilePickerModal extends FuzzySuggestModal<TFile> {
+  constructor(private onChoose: (path: string) => void) {
+    super(app);
+    this.setPlaceholder(t('Search…'));
+  }
+
+  getItems(): TFile[] {
+    return app.vault
+      .getFiles()
+      .filter((f) => BIB_EXTENSIONS.has(f.extension))
+      .sort((a, b) => a.path.localeCompare(b.path));
+  }
+
+  getItemText(file: TFile): string {
+    return file.path;
+  }
+
+  onChooseItem(file: TFile): void {
+    this.onChoose(file.path);
+  }
 }
 
 export class ReferenceListSettingsTab extends PluginSettingTab {
@@ -157,35 +187,45 @@ export class ReferenceListSettingsTab extends PluginSettingTab {
           });
         });
 
-        // Desktop only: native file-system picker via a hidden <input type="file">.
-        // In Electron, File objects expose a `.path` property with the absolute
-        // OS path, so no Electron API imports are needed.
-        if (Platform.isDesktop) {
-          setting.addExtraButton((btn) => {
-            btn.setIcon('folder-open').setTooltip(t('Browse…'));
-            btn.onClick(() => {
+        // Browse button: native OS picker on desktop, vault modal on mobile.
+        setting.addExtraButton((btn) => {
+          btn.setIcon('folder-open').setTooltip(t('Browse…'));
+          btn.onClick(() => {
+            if (Platform.isDesktop) {
+              // Desktop (Electron): a hidden <input type="file"> surfaces the
+              // OS file picker and exposes a non-standard `.path` property on
+              // the selected File object — no Electron API imports needed.
               const fileInput = document.createElement('input');
               fileInput.type = 'file';
               fileInput.accept = '.bib,.json,.yaml,.yml';
               fileInput.onchange = async () => {
                 const file = fileInput.files?.[0];
-                // In Electron the File object has a non-standard `.path` property.
                 const fsPath: string | undefined = (file as any)?.path;
                 if (!fsPath) return;
 
-                // Normalise immediately (absolute → vault-relative when inside vault).
+                // Normalise: absolute → vault-relative when the file is inside the vault.
                 let resolved = fsPath;
                 try { resolved = await getBibPath(fsPath); } catch { /* keep absolute */ }
 
                 inputEl.value = resolved;
-                inputEl.dispatchEvent(new Event('input')); // save via onChange
+                inputEl.dispatchEvent(new Event('input')); // triggers onChange → save
                 this.plugin.settings.pathToBibliography = resolved;
                 this.plugin.saveSettings(() => this.plugin.bibManager.reinit(true));
               };
               fileInput.click();
-            });
+            } else {
+              // Mobile: the OS file picker can't return a stable file-system path,
+              // so open a vault file picker modal instead. Only vault-relative paths
+              // (synced via Obsidian Sync / iCloud / etc.) make sense on mobile.
+              new BibFilePickerModal((path) => {
+                inputEl.value = path;
+                inputEl.dispatchEvent(new Event('input'));
+                this.plugin.settings.pathToBibliography = path;
+                this.plugin.saveSettings(() => this.plugin.bibManager.reinit(true));
+              }).open();
+            }
           });
-        }
+        });
       });
 
     ReactDOM.render(
