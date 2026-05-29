@@ -33,7 +33,6 @@ import { PromiseCapability, fixPath, getVaultRoot } from './helpers';
 import path from 'path';
 import { BibManager, getScopedSettings } from './bib/bibManager';
 import { CiteSuggest } from './citeSuggest/citeSuggest';
-import { isZoteroRunning } from './bib/helpers';
 
 const bibliographyExtensions = new Set(['bib', 'json', 'yaml', 'yml']);
 
@@ -504,7 +503,7 @@ export default class ReferenceList extends Plugin {
           !bib &&
           cache?.source === this.bibManager &&
           settings.pullFromZotero &&
-          !(await isZoteroRunning(settings.zoteroPort)) &&
+          !(await this.bibManager.isZoteroAvailable()) &&
           this.bibManager.fileCache.get(activeView.file)?.keys.size
         ) {
           view?.setMessage(t('Cannot connect to Zotero'));

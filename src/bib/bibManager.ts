@@ -8,13 +8,9 @@ import {
   getBibPath,
   getCSLLocale,
   getCSLStyle,
-  getItemJSONFromCiteKeys,
-  getItemJSONFromCiteKeysNative,
-  getZBib,
-  getZBibNative,
-  refreshZBib,
-  refreshZBibNative,
 } from './helpers';
+import { BBTAdapter, NativeAdapter, ZoteroAdapter } from './zotero';
+import { DEFAULT_ZOTERO_PORT } from './helpers';
 import {
   PromiseCapability,
   copyElToClipboard,
@@ -455,6 +451,18 @@ export class BibManager {
     }
   }
 
+  getZoteroAdapter(): ZoteroAdapter {
+    const { settings } = this.plugin;
+    const port = settings.zoteroPort ?? DEFAULT_ZOTERO_PORT;
+    return settings.useNativeZoteroAPI
+      ? new NativeAdapter(port)
+      : new BBTAdapter(port);
+  }
+
+  async isZoteroAvailable(): Promise<boolean> {
+    return this.getZoteroAdapter().isRunning();
+  }
+
   async loadAndRefreshGlobalZBib() {
     await this.loadGlobalZBib(true);
     await this.refreshGlobalZBib();
@@ -464,38 +472,19 @@ export class BibManager {
     const { settings, cacheDir } = this.plugin;
     if (!settings.zoteroGroups?.length) return;
 
+    const adapter = this.getZoteroAdapter();
     const bib: PartialCSLEntry[] = [];
     for (const group of settings.zoteroGroups) {
       try {
-        if (settings.useNativeZoteroAPI) {
-          const res = await getZBibNative(
-            settings.zoteroPort,
-            cacheDir,
-            group.id,
-            fromCache
-          );
-          if (res.list?.length) {
-            bib.push(...res.list);
+        const res = await adapter.getBib(cacheDir, group.id, fromCache);
+        if (res.list?.length) {
+          bib.push(...res.list);
+          // Only advance lastUpdate when fetched fresh from Zotero.
+          // Loading from cache must not move lastUpdate forward or the
+          // subsequent incremental refresh will miss recently added items.
+          if (!fromCache) {
             group.lastUpdate = Date.now();
             group.libraryVersion = res.version;
-          }
-        } else {
-          const list = await getZBib(
-            settings.zoteroPort,
-            cacheDir,
-            group.id,
-            fromCache
-          );
-          if (list?.length) {
-            bib.push(...list);
-            // Only advance lastUpdate when we fetched fresh from Zotero.
-            // Loading from the cache file must not move lastUpdate forward,
-            // or the subsequent incremental refresh will query for items
-            // modified "after now" and permanently miss anything not already
-            // in the cache.
-            if (!fromCache) {
-              group.lastUpdate = Date.now();
-            }
           }
         }
       } catch (e) {
@@ -542,23 +531,17 @@ export class BibManager {
     const { settings, cacheDir } = this.plugin;
     if (!settings.zoteroGroups?.length) return;
 
+    const adapter = this.getZoteroAdapter();
     const modifiedEntries: Map<string, PartialCSLEntry> = new Map();
 
     for (const group of settings.zoteroGroups) {
       try {
-        const res = settings.useNativeZoteroAPI
-          ? await refreshZBibNative(
-              settings.zoteroPort,
-              cacheDir,
-              group.id,
-              group.libraryVersion ?? 0
-            )
-          : await refreshZBib(
-              settings.zoteroPort,
-              cacheDir,
-              group.id,
-              group.lastUpdate
-            );
+        const res = await adapter.refreshBib(
+          cacheDir,
+          group.id,
+          group.libraryVersion ?? 0,
+          group.lastUpdate
+        );
 
         if (!res) continue;
         if (res.list?.length) {
@@ -909,17 +892,10 @@ export class BibManager {
     for (const id of Object.keys(queries)) {
       const groupId = Number(id);
       try {
-        const items = this.plugin.settings.useNativeZoteroAPI
-          ? await getItemJSONFromCiteKeysNative(
-              this.plugin.settings.zoteroPort,
-              queries[groupId],
-              groupId
-            )
-          : await getItemJSONFromCiteKeys(
-              this.plugin.settings.zoteroPort,
-              queries[groupId],
-              groupId
-            );
+        const items = await this.getZoteroAdapter().getItemsForCiteKeys(
+          queries[groupId],
+          groupId
+        );
         if (items?.length) {
           for (const item of items) {
             const key = item.citekey || item.citationKey;
