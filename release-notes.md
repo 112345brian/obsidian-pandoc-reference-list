@@ -1,3 +1,7 @@
+## 2.1.8
+
+- **Fix: autocomplete and tooltips definitively fixed for existing installs.** The debug logs in 2.1.7 showed `onTrigger` returning before even reaching the regex — because `data.json` had `enableCiteKeyCompletion: false` saved from the era when the toggle appeared off by default. The `=== false` guard we added in 2.1.4 correctly caught this and silently suppressed suggestions. `loadSettings` now migrates stale `false` values for `enableCiteKeyCompletion` and `showCitekeyTooltips` by deleting them before merging with defaults, so the new default of `true` takes effect. No settings change needed.
+
 ## 2.1.7
 
 - **Debug build** — added `[CiteSuggest]` console logging to trace exactly where autocomplete is failing. Open the developer console (Ctrl/Cmd+Shift+I), type a few characters after `@`, and screenshot the debug output.

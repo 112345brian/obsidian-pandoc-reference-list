@@ -474,7 +474,17 @@ export default class ReferenceList extends Plugin {
   }
 
   async loadSettings() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const saved = (await this.loadData()) ?? {};
+
+    // Migration: these settings defaulted to false in older builds due to a bug
+    // (undefined was treated as false in the UI, so the toggle appeared off and
+    // may have been saved as false). Since the feature was never reliably on,
+    // we reset any saved false so the new default (true) takes effect.
+    // Users who intentionally disable these can still do so via the settings tab.
+    if (saved.enableCiteKeyCompletion === false) delete saved.enableCiteKeyCompletion;
+    if (saved.showCitekeyTooltips === false) delete saved.showCitekeyTooltips;
+
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
   }
 
   async saveSettings(cb?: () => void) {
