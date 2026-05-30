@@ -1,3 +1,8 @@
+## 2.1.9
+
+- **Cleanup: removed debug console logging** added in 2.1.7 — `[CiteSuggest]` trace messages no longer appear in the developer console.
+- **Cleanup: renamed internal CSS class prefix** from `pwc-` (upstream "Pandoc With Citations" artifact) to `bcs-` throughout all source files and styles. No visual change; purely removes residual upstream identity markers.
+
 ## 2.1.8
 
 - **Fix: autocomplete and tooltips definitively fixed for existing installs.** The debug logs in 2.1.7 showed `onTrigger` returning before even reaching the regex — because `data.json` had `enableCiteKeyCompletion: false` saved from the era when the toggle appeared off by default. The `=== false` guard we added in 2.1.4 correctly caught this and silently suppressed suggestions. `loadSettings` now migrates stale `false` values for `enableCiteKeyCompletion` and `showCitekeyTooltips` by deleting them before merging with defaults, so the new default of `true` takes effect. No settings change needed.

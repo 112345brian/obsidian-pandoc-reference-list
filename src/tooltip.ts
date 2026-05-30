@@ -68,7 +68,7 @@ export class TooltipManager {
     const modClasses = this.plugin.settings.hideLinks ? ' collapsed-links' : '';
     const doc = ((el as any).doc || el.ownerDocument || document) as Document;
     const tooltip = (this.tooltip = doc.body.createDiv({
-      cls: `pwc-tooltip${modClasses}`,
+      cls: `bcs-tooltip${modClasses}`,
     }));
     const rect = el.getBoundingClientRect();
 
@@ -168,17 +168,17 @@ export class TooltipManager {
     }
 
     const doc = ((el as any).doc ?? el.ownerDocument ?? document) as Document;
-    const backdrop = doc.body.createDiv({ cls: 'pwc-mobile-backdrop' });
+    const backdrop = doc.body.createDiv({ cls: 'bcs-mobile-backdrop' });
 
     // Tap outside the card → dismiss.
     backdrop.addEventListener('click', (e) => {
       if (e.target === backdrop) backdrop.remove();
     });
 
-    const card = backdrop.createDiv({ cls: 'pwc-mobile-card pwc-reference-list' });
+    const card = backdrop.createDiv({ cls: 'bcs-mobile-card bcs-reference-list' });
 
     // Header with close button.
-    const header = card.createDiv({ cls: 'pwc-mobile-card-header' });
+    const header = card.createDiv({ cls: 'bcs-mobile-card-header' });
     const closeBtn = header.createDiv({ cls: 'clickable-icon' });
     setIcon(closeBtn, 'x');
     closeBtn.setAttribute('aria-label', t('Close'));

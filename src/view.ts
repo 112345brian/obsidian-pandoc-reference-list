@@ -14,7 +14,7 @@ export class ReferenceListView extends ItemView {
     super(leaf);
     this.plugin = plugin;
 
-    this.contentEl.addClass('pwc-reference-list');
+    this.contentEl.addClass('bcs-reference-list');
     this.contentEl.toggleClass(
       'collapsed-links',
       !!this.plugin.settings.hideLinks
@@ -43,20 +43,20 @@ export class ReferenceListView extends ItemView {
       this.contentEl.empty();
       this.contentEl.createDiv(
         {
-          cls: 'pwc-reference-list__title',
+          cls: 'bcs-reference-list__title',
         },
         (div) => {
           div.createDiv({ text: this.getDisplayText() });
           div.createDiv({}, (div) => {
             if (count) {
               div.createDiv({
-                cls: 'pwc-reference-list__count',
+                cls: 'bcs-reference-list__count',
                 text: count.toString(),
               });
             }
             if (unresolvedCount) {
               div.createDiv({
-                cls: 'pwc-reference-list__unresolved-count',
+                cls: 'bcs-reference-list__unresolved-count',
                 text: unresolvedCount.toString(),
                 attr: {
                   'aria-label': t('Unresolved citations'),
@@ -80,9 +80,9 @@ export class ReferenceListView extends ItemView {
       );
 
       if (count > 1) {
-        const searchWrap = this.contentEl.createDiv({ cls: 'pwc-search-wrap' });
+        const searchWrap = this.contentEl.createDiv({ cls: 'bcs-search-wrap' });
         const input = searchWrap.createEl('input', {
-          cls: 'pwc-search-input',
+          cls: 'bcs-search-input',
           attr: { type: 'search', placeholder: t('Filter references…') },
         });
         input.addEventListener('input', () => {

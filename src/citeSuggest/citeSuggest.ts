@@ -51,7 +51,7 @@ export class CiteSuggest extends EditorSuggest<
     this.app = app;
     this.plugin = plugin;
 
-    (this as any).suggestEl.addClass('pwc-suggest');
+    (this as any).suggestEl.addClass('bcs-suggest');
     (this as any).scope.register(['Mod'], 'Enter', (evt: KeyboardEvent) => {
       (this as any).suggestions.useSelectedItem(evt);
       return false;
@@ -81,7 +81,6 @@ export class CiteSuggest extends EditorSuggest<
 
     const { plugin } = this;
     if (!plugin.initPromise.settled) {
-      console.debug('[CiteSuggest] initPromise not settled yet');
       return null;
     }
 
@@ -97,15 +96,9 @@ export class CiteSuggest extends EditorSuggest<
       fuse = cache.source.fuse ?? bibManager.fuse;
     }
 
-    console.debug(
-      `[CiteSuggest] query="${context.query}" fuse=${fuse ? `ok (${(fuse as any)._docs?.length ?? '?'} entries)` : 'NULL'}`
-    );
-
     const results = fuse?.search(context.query, {
       limit: this.limit,
     });
-
-    console.debug(`[CiteSuggest] results: ${results?.length ?? 0}`);
 
     return results?.length ? results : null;
   }
@@ -118,8 +111,8 @@ export class CiteSuggest extends EditorSuggest<
 
     if ((suggestion as { loading: boolean }).loading) {
       frag
-        .createSpan({ cls: 'pwc-suggest-loading-wrapper' })
-        .createSpan({ cls: 'pwc-suggest-loading' });
+        .createSpan({ cls: 'bcs-suggest-loading-wrapper' })
+        .createSpan({ cls: 'bcs-suggest-loading' });
       el.setText(frag);
       return;
     }
@@ -130,14 +123,14 @@ export class CiteSuggest extends EditorSuggest<
     if (!sugg.matches || !sugg.matches.length) {
       frag.createSpan({ text: `@${item.id}` });
       if (item.title)
-        frag.createSpan({ text: item.title, cls: 'pwc-suggest-title' });
+        frag.createSpan({ text: item.title, cls: 'bcs-suggest-title' });
       const meta = getEntryMeta(item);
-      if (meta) frag.createSpan({ text: meta, cls: 'pwc-suggest-meta' });
+      if (meta) frag.createSpan({ text: meta, cls: 'bcs-suggest-meta' });
       return el.setText(frag);
     }
 
     const citekey = frag.createSpan({ text: '@' });
-    const title = frag.createSpan('pwc-suggest-title');
+    const title = frag.createSpan('bcs-suggest-title');
 
     let prevTitleIndex = 0;
     let prevCiteIndex = 0;
@@ -171,7 +164,7 @@ export class CiteSuggest extends EditorSuggest<
     citekey.appendText(item.id.substring(prevCiteIndex));
 
     const meta = getEntryMeta(item);
-    if (meta) frag.createSpan({ text: meta, cls: 'pwc-suggest-meta' });
+    if (meta) frag.createSpan({ text: meta, cls: 'bcs-suggest-meta' });
 
     el.setText(frag);
   }
@@ -230,10 +223,8 @@ export class CiteSuggest extends EditorSuggest<
     const match = line.match(triggerRE);
 
     if (!match) {
-      console.debug(`[CiteSuggest] no trigger match for: ${JSON.stringify(line)}`);
       return null;
     }
-    console.debug(`[CiteSuggest] triggered, query="${match[3]}" char-before="${match[1]}"`);
 
     this.lastSelect = null;
 

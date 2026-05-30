@@ -235,7 +235,7 @@ export class ReferenceListSettingsTab extends PluginSettingTab {
 
     ReactDOM.render(
       <ZoteroPullSetting plugin={this.plugin} />,
-      containerEl.createDiv('setting-item pwc-setting-item-wrapper')
+      containerEl.createDiv('setting-item bcs-setting-item-wrapper')
     );
 
     const configuredStyle = this.plugin.settings.cslStyleURL;
@@ -260,7 +260,7 @@ export class ReferenceListSettingsTab extends PluginSettingTab {
           }}
         />
       </SettingItem>,
-      containerEl.createDiv('pwc-setting-item setting-item')
+      containerEl.createDiv('bcs-setting-item setting-item')
     );
 
     new Setting(containerEl)
@@ -318,7 +318,7 @@ export class ReferenceListSettingsTab extends PluginSettingTab {
           }}
         />
       </SettingItem>,
-      containerEl.createDiv('pwc-setting-item setting-item')
+      containerEl.createDiv('bcs-setting-item setting-item')
     );
 
     new Setting(containerEl)
@@ -444,7 +444,7 @@ export class ReferenceListSettingsTab extends PluginSettingTab {
       });
       const control = row.createDiv({ cls: 'setting-item-control' });
       const preview = control.createDiv({
-        cls: 'pwc-decorations pwc-decoration-preview',
+        cls: 'bcs-decorations bcs-decoration-preview',
       });
 
       // [@smith2020] — resolved citation
@@ -453,12 +453,12 @@ export class ReferenceListSettingsTab extends PluginSettingTab {
       preview.createSpan({ cls: 'cm-pandoc-citation pandoc-citation is-resolved', text: 'smith2020' });
       preview.createSpan({ cls: 'cm-pandoc-citation-formatting bracket', text: ']' });
 
-      preview.createSpan({ cls: 'pwc-preview-sep', text: '·' });
+      preview.createSpan({ cls: 'bcs-preview-sep', text: '·' });
 
       // [[@jones2021]] — wikilink citation (shown as rendered widget)
       preview.createSpan({ cls: 'pandoc-citation is-resolved is-link', text: '(Jones, 2021)' });
 
-      preview.createSpan({ cls: 'pwc-preview-sep', text: '·' });
+      preview.createSpan({ cls: 'bcs-preview-sep', text: '·' });
 
       // [@unknown] — unresolved
       preview.createSpan({ cls: 'cm-pandoc-citation-formatting bracket', text: '[' });

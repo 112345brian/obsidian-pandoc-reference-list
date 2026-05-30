@@ -913,9 +913,9 @@ export class BibManager {
 
         if (!litNote && !zLink && !zPDFLinks && !hasConflict && !canCreateNote) return;
 
-        div.createDiv({ cls: 'pwc-entry-btns' }, (div) => {
+        div.createDiv({ cls: 'bcs-entry-btns' }, (div) => {
           if (hasConflict) {
-            div.createDiv('clickable-icon pwc-conflict-icon', (div) => {
+            div.createDiv('clickable-icon bcs-conflict-icon', (div) => {
               setIcon(div, 'lucide-alert-triangle');
               div.setAttr(
                 'aria-label',

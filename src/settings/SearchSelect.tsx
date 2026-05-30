@@ -97,11 +97,11 @@ export function SearchSelect({
   };
 
   return (
-    <div className="pwc-search-select">
-      <div className="pwc-search-select__control">
+    <div className="bcs-search-select">
+      <div className="bcs-search-select__control">
         <input
           type="text"
-          className="pwc-search-select__input"
+          className="bcs-search-select__input"
           value={inputVal}
           placeholder={placeholder}
           onChange={handleInput}
@@ -131,7 +131,7 @@ export function SearchSelect({
         />
         {isClearable && selected && (
           <button
-            className="pwc-search-select__clear clickable-icon"
+            className="bcs-search-select__clear clickable-icon"
             onMouseDown={handleClear}
             aria-label="Clear"
           >
@@ -140,12 +140,12 @@ export function SearchSelect({
         )}
       </div>
       {isOpen && (
-        <div id={menuId} className="pwc-search-select__menu" role="listbox">
+        <div id={menuId} className="bcs-search-select__menu" role="listbox">
           {options.map((opt, index) => (
             <div
               key={opt.value}
               id={`${menuId}-option-${index}`}
-              className={`pwc-search-select__option${
+              className={`bcs-search-select__option${
                 index === activeIndex ? ' is-active' : ''
               }`}
               role="option"

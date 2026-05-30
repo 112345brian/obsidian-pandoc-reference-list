@@ -223,11 +223,11 @@ export default class ReferenceList extends Plugin {
     });
 
     document.body.toggleClass(
-      'pwc-tooltips',
+      'bcs-tooltips',
       this.settings.showCitekeyTooltips !== false
     );
     document.body.toggleClass(
-      'pwc-decorations',
+      'bcs-decorations',
       this.settings.showCitationDecorations ?? true
     );
 
@@ -311,7 +311,7 @@ export default class ReferenceList extends Plugin {
   }
 
   onunload() {
-    document.body.removeClass('pwc-tooltips');
+    document.body.removeClass('bcs-tooltips');
     this.app.workspace
       .getLeavesOfType(viewType)
       .forEach((leaf) => leaf.detach());
@@ -354,7 +354,7 @@ export default class ReferenceList extends Plugin {
   statusBarIcon: HTMLElement;
   initStatusBar() {
     const ico = (this.statusBarIcon = this.addStatusBarItem());
-    ico.addClass('pwc-status-icon', 'clickable-icon');
+    ico.addClass('bcs-status-icon', 'clickable-icon');
     ico.setAttr('aria-label', t('Bripey Citation Suite settings'));
     ico.setAttr('data-tooltip-position', 'top');
     this.setStatusBarIdle();
@@ -489,11 +489,11 @@ export default class ReferenceList extends Plugin {
 
   async saveSettings(cb?: () => void) {
     document.body.toggleClass(
-      'pwc-tooltips',
+      'bcs-tooltips',
       this.settings.showCitekeyTooltips !== false
     );
     document.body.toggleClass(
-      'pwc-decorations',
+      'bcs-decorations',
       this.settings.showCitationDecorations ?? true
     );
 
