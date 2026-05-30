@@ -104,7 +104,20 @@ export async function bibToCSL(
   // Falls back to the JS parser if Pandoc fails so existing configs keep working.
   if (pathToPandoc && (ext === 'bib' || ext === 'yaml' || ext === 'yml')) {
     try {
-      return await bibToCSLViaPandoc(resolved, pathToPandoc);
+      // Pandoc runs from its own working directory, so it can't resolve
+      // vault-relative paths. Always pass an absolute path.
+      let pandocPath = resolved;
+      if (!isAbsolutePath(pandocPath)) {
+        const vaultBase: string | undefined =
+          typeof (app.vault.adapter as any).getBasePath === 'function'
+            ? ((app.vault.adapter as any).getBasePath() as string)
+            : undefined;
+        if (vaultBase) {
+          pandocPath = vaultBase.replace(/\/+$/, '').replace(/\\/g, '/') +
+            '/' + pandocPath.replace(/\\/g, '/');
+        }
+      }
+      return await bibToCSLViaPandoc(pandocPath, pathToPandoc);
     } catch (e) {
       console.warn(
         'bripey-citation-suite: Pandoc failed, falling back to JS parser:',

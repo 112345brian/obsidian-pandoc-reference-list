@@ -146,9 +146,15 @@ export function parseBibTeX(raw: string): PartialCSLEntry[] {
     return [];
   }
 
-  // Log any structural errors the parser reported.
+  // Log any structural errors the parser reported with enough detail to diagnose.
   (parsed?.errors ?? []).forEach((e: unknown) => {
-    console.warn('bripey-citation-suite: BibTeX parse error:', e);
+    const detail =
+      e instanceof Error
+        ? e.message
+        : typeof e === 'object' && e !== null
+        ? JSON.stringify(e)
+        : String(e);
+    console.warn('bripey-citation-suite: BibTeX parse error:', detail);
   });
 
   const entries = parsed?.entries;

@@ -1,3 +1,8 @@
+## 2.1.3
+
+- **Fix: Pandoc receives an absolute path.** When the bibliography path is vault-relative (e.g. `RESOURCES/Citations/refs.bib`), Pandoc was invoked with that relative path as-is. Because Pandoc runs from its own working directory — not the vault root — it couldn't find the file and failed immediately. The path is now expanded to absolute before being passed to Pandoc, so the fallback to the JS parser only happens for real Pandoc errors, not this lookup failure.
+- **BibTeX parse errors now show readable messages** instead of collapsed `Object` blobs in the console. The error detail (JSON or message string) is logged so malformed entries can actually be identified and fixed.
+
 ## 2.1.2
 
 - **Fix: citekey autocomplete and hover tooltips were off by default.** `enableCiteKeyCompletion` and `showCitekeyTooltips` were not included in `DEFAULT_SETTINGS`, so both defaulted to `undefined` (falsy) for any fresh install — meaning `@key` suggestions never appeared and hover tooltips never showed unless you had previously toggled them on explicitly. Both now default to enabled.
