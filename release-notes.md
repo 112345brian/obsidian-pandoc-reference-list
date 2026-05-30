@@ -1,3 +1,7 @@
+## 2.1.5
+
+- **Fix: citekey autocomplete showed no results (race condition).** When a file's cache entry is built before the global bibliography finishes loading, `source.fuse` is captured as `null`. Subsequent typing then hits `null?.search()` → no results, even though the global `bibManager.fuse` is fully populated. `getSuggestions` now falls back to the global fuse when the per-file one is null.
+
 ## 2.1.4
 
 - **Fix: citekey autocomplete and tooltips silently disabled on existing installs.** `Object.assign({}, DEFAULT_SETTINGS, savedData)` means any previously-saved value (including `false` from when the setting rendered as off by default) overrides the new default of `true`. The guards now only block the feature if the setting is *explicitly* `false` — `undefined` (never consciously set) is treated as enabled. No settings toggle needed.

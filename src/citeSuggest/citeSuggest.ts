@@ -86,10 +86,14 @@ export class CiteSuggest extends EditorSuggest<
 
     const { bibManager } = plugin;
 
+    // Use the per-file fuse index when the note has a frontmatter bibliography,
+    // but fall back to the global index if the per-file one is null — this
+    // happens when the fileCache entry was created before the global bib finished
+    // loading (race condition on startup).
     let fuse = bibManager.fuse;
     if (bibManager.fileCache.has(context.file)) {
       const cache = bibManager.fileCache.get(context.file);
-      fuse = cache.source.fuse;
+      fuse = cache.source.fuse ?? bibManager.fuse;
     }
 
     const results = fuse?.search(context.query, {

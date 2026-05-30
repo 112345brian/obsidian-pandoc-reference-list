@@ -1,7 +1,7 @@
 {
 	"id": "bripey-citation-suite",
 	"name": "Bripey Citation Suite",
-	"version": "2.1.4",
+	"version": "2.1.5",
 	"minAppVersion": "0.15.0",
 	"description": "Displays formatted references and citations for Pandoc citekeys in Obsidian.",
 	"author": "bripey",
