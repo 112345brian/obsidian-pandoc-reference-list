@@ -1,3 +1,7 @@
+## 2.2.2
+
+- **Debug: added unconditional `onTrigger` probe.** Now logs any time the line contains `@`, regardless of regex match — tells us definitively whether `onTrigger` is being called at all vs. the regex failing to match.
+
 ## 2.2.1
 
 - **Debug build** — comprehensive `[bcs:*]` console logging added at every stage of the suggestion pipeline. Open the developer console (Ctrl/Cmd+Shift+I) and look for `[bcs:main]`, `[bcs:bib]`, `[bcs:suggest]`, and `[bcs:zotero-search]` prefixes. Loading Obsidian will log the active settings and bib-load sequence; typing `@de` will log exactly where the suggestion flow stops.
