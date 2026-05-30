@@ -12,9 +12,7 @@ import {
 import { PartialCSLEntry } from 'src/bib/types';
 import ReferenceList from 'src/main';
 import { isZotLitSuggestActive } from 'src/zotlit';
-
-// Re-export so settings.tsx can import from one place.
-export { isZotLitSuggestActive };
+export { isZotLitSuggestActive }; // re-exported for settings.tsx
 
 // Returns a compact metadata string for a CSL entry: "Smith · 2020 · Nature"
 function getEntryMeta(item: PartialCSLEntry): string {
@@ -225,12 +223,13 @@ export class CiteSuggest extends EditorSuggest<
     if (!match) return null;
     this.lastSelect = null;
 
-    // match[1] is the character before "@". When it is "[", ZotLit's
-    // citation suggester handles that context — yield to it to avoid showing
-    // two competing suggestion panels for [@key completions.
-    if (match[1] === '[' && isZotLitSuggestActive(this.app)) {
-      return null;
-    }
+    // Previously we yielded the [@key context to ZotLit when it was active, to
+    // avoid duplicate popups. In practice, ZotLit sets globalThis.zoteroAPI when
+    // the plugin loads — not only when Zotero is connected — so we were silently
+    // suppressing our own completions even when ZotLit had nothing to show.
+    // We now always run; if ZotLit is also active its suggester will compete and
+    // Obsidian will show whichever fires first. Users who want ZotLit-only
+    // bracket completions can disable ours in settings.
 
     if (!this.context && pullFromZotero) {
       this.refreshZBib();

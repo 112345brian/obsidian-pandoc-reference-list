@@ -1,3 +1,7 @@
+## 2.1.6
+
+- **Fix: citekey suggestions suppressed when ZotLit is installed.** The plugin previously yielded all `[@key` completions to ZotLit when it detected ZotLit was active. The problem: ZotLit sets `globalThis.zoteroAPI` when its plugin loads — regardless of whether Zotero is actually running — so we were silently returning no suggestions whenever ZotLit was present, even when ZotLit had nothing to show. Both suggesters now run; whichever has data wins.
+
 ## 2.1.5
 
 - **Fix: citekey autocomplete showed no results (race condition).** When a file's cache entry is built before the global bibliography finishes loading, `source.fuse` is captured as `null`. Subsequent typing then hits `null?.search()` → no results, even though the global `bibManager.fuse` is fully populated. `getSuggestions` now falls back to the global fuse when the per-file one is null.

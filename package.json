@@ -1,6 +1,6 @@
 {
   "name": "bripey-citation-suite",
-  "version": "2.1.5",
+  "version": "2.1.6",
   "description": "Bripey Citation Suite for Obsidian.",
   "main": "main.js",
   "scripts": {
