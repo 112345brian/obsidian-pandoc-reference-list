@@ -203,7 +203,8 @@ export class CiteSuggest extends EditorSuggest<
 
   onTrigger(cursor: EditorPosition, editor: Editor): EditorSuggestTriggerInfo {
     const { enableCiteKeyCompletion, pullFromZotero } = this.plugin.settings;
-    if (!enableCiteKeyCompletion) return null;
+    // Only block if *explicitly* disabled — undefined (never set) means enabled.
+    if (enableCiteKeyCompletion === false) return null;
 
     const { lastSelect } = this;
     if (

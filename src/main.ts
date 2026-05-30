@@ -224,7 +224,7 @@ export default class ReferenceList extends Plugin {
 
     document.body.toggleClass(
       'pwc-tooltips',
-      !!this.settings.showCitekeyTooltips
+      this.settings.showCitekeyTooltips !== false
     );
     document.body.toggleClass(
       'pwc-decorations',
@@ -480,7 +480,7 @@ export default class ReferenceList extends Plugin {
   async saveSettings(cb?: () => void) {
     document.body.toggleClass(
       'pwc-tooltips',
-      !!this.settings.showCitekeyTooltips
+      this.settings.showCitekeyTooltips !== false
     );
     document.body.toggleClass(
       'pwc-decorations',

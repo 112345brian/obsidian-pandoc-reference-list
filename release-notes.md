@@ -1,3 +1,7 @@
+## 2.1.4
+
+- **Fix: citekey autocomplete and tooltips silently disabled on existing installs.** `Object.assign({}, DEFAULT_SETTINGS, savedData)` means any previously-saved value (including `false` from when the setting rendered as off by default) overrides the new default of `true`. The guards now only block the feature if the setting is *explicitly* `false` — `undefined` (never consciously set) is treated as enabled. No settings toggle needed.
+
 ## 2.1.3
 
 - **Fix: Pandoc receives an absolute path.** When the bibliography path is vault-relative (e.g. `RESOURCES/Citations/refs.bib`), Pandoc was invoked with that relative path as-is. Because Pandoc runs from its own working directory — not the vault root — it couldn't find the file and failed immediately. The path is now expanded to absolute before being passed to Pandoc, so the fallback to the JS parser only happens for real Pandoc errors, not this lookup failure.
