@@ -236,12 +236,9 @@ export class CiteSuggest extends EditorSuggest<Fuse.FuseResult<PartialCSLEntry>>
   onTrigger(cursor: EditorPosition, editor: Editor): EditorSuggestTriggerInfo {
     const { enableCiteKeyCompletion, pullFromZotero } = this.plugin.settings;
 
-    // Unconditional probe — fires on every keystroke so we know onTrigger is alive.
-    // Logged only when line contains '@' to keep noise down.
+    // Unconditional probe — fires on EVERY call, no condition.
     const lineRaw = (editor.getLine(cursor.line) || '').substring(0, cursor.ch);
-    if (lineRaw.includes('@')) {
-      LOG('onTrigger called, line=', JSON.stringify(lineRaw), 'enableCiteKeyCompletion=', enableCiteKeyCompletion);
-    }
+    LOG('onTrigger TICK ch=' + cursor.ch + ' line=' + JSON.stringify(lineRaw));
 
     // Only block if *explicitly* disabled — undefined (never set) means enabled.
     if (enableCiteKeyCompletion === false) {
