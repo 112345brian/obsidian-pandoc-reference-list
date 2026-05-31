@@ -124,6 +124,7 @@ export default class ReferenceList extends Plugin {
   emitter: Events;
   tooltipManager: TooltipManager;
   bibManager: BibManager;
+  private citeSuggest: CiteSuggest;
   cacheDir = '.pandoc';
   _initPromise: PromiseCapability<void>;
   private processReferencesRun = 0;
@@ -184,27 +185,9 @@ export default class ReferenceList extends Plugin {
       .finally(() => this.bibManager.initPromise.resolve());
 
     this.addSettingTab(new ReferenceListSettingsTab(this));
-    const citeSuggest = new CiteSuggest(app, this);
-    this.registerEditorSuggest(citeSuggest);
-    // Other plugins (e.g. pandoc-extended-markdown) also register `@`-triggered
-    // EditorSuggesters. Obsidian polls suggesters in registration order and the
-    // first one whose onTrigger returns non-null wins, swallowing the keystroke
-    // before ours is consulted. When `prioritizeCiteKeyCompletion` is enabled
-    // (default: true), move ours to the front of the shared queue so citation
-    // completion takes priority on `@`. We reorder the existing array in place
-    // (rather than re-registering) so the plugin-unload cleanup that
-    // registerEditorSuggest set up still removes it by reference.
-    if (this.settings.prioritizeCiteKeyCompletion !== false) {
-      const suggestMgr = (this.app.workspace as any).editorSuggest;
-      const suggests: unknown[] | undefined = suggestMgr?.suggests;
-      if (Array.isArray(suggests)) {
-        const idx = suggests.indexOf(citeSuggest);
-        if (idx > 0) {
-          suggests.splice(idx, 1);
-          suggests.unshift(citeSuggest);
-        }
-      }
-    }
+    this.citeSuggest = new CiteSuggest(app, this);
+    this.registerEditorSuggest(this.citeSuggest);
+    this.applyPrioritizeSetting();
     this.tooltipManager = new TooltipManager(this);
     this.registerMarkdownPostProcessor(processCiteKeys(this));
     this.registerEditorExtension([
@@ -523,6 +506,22 @@ export default class ReferenceList extends Plugin {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
   }
 
+  // Move CiteSuggest to the front of Obsidian's shared EditorSuggest queue
+  // (so it wins `@` over other plugins) or to the back (so it yields).
+  // Called on load and whenever the prioritizeCiteKeyCompletion setting changes.
+  // Reorders in-place so registerEditorSuggest's cleanup reference stays valid.
+  private applyPrioritizeSetting() {
+    const suggests = (this.app.workspace as any).editorSuggest?.suggests as unknown[] | undefined;
+    if (!Array.isArray(suggests) || !this.citeSuggest) return;
+    const idx = suggests.indexOf(this.citeSuggest);
+    if (idx === -1) return;
+    if (this.settings.prioritizeCiteKeyCompletion !== false) {
+      if (idx > 0) { suggests.splice(idx, 1); suggests.unshift(this.citeSuggest); }
+    } else {
+      if (idx === 0) { suggests.splice(idx, 1); suggests.push(this.citeSuggest); }
+    }
+  }
+
   async saveSettings(cb?: () => void) {
     document.body.toggleClass(
       'bcs-tooltips',
@@ -532,6 +531,8 @@ export default class ReferenceList extends Plugin {
       'bcs-decorations',
       this.settings.showCitationDecorations ?? true
     );
+
+    this.applyPrioritizeSetting();
 
     // Refresh the reference list when settings change
     this.emitSettingsUpdate(cb);
