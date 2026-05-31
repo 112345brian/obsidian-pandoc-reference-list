@@ -251,7 +251,7 @@ export class BibManager {
         this.conflictKeys.clear();
 
         const reload = async () => {
-          if (settings.pathToBibliography) await this.loadGlobalBibFile();
+          if (settings.bibliographyPaths?.length) await this.loadGlobalBibFiles();
           if (settings.pullFromZotero) await this.loadGlobalZBib(false);
           await this.buildGlobalEngine();
           this.fileCache.clear();

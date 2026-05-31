@@ -1,7 +1,17 @@
+export interface CSLName {
+  family?: string;
+  given?: string;
+  literal?: string;
+}
+
 export interface PartialCSLEntry {
   id: string;
   title: string;
   groupID?: number;
+  /** CSL author list — used by Fuse title-biased search. */
+  author?: CSLName[];
+  /** CSL editor list. */
+  editor?: CSLName[];
   /** Which source this entry was loaded from. Internal — not a CSL field. */
   _source?: 'bib' | 'zotero';
   /** ISO dateModified from Zotero, used to resolve cross-group duplicates. */

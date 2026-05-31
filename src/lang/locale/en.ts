@@ -3,6 +3,21 @@
 export default {
   // src/settings.ts
   'Path to bibliography file': 'Path to bibliography file',
+  'Bibliography files': 'Bibliography files',
+  'One or more bibliography files (.bib, .json, or .yaml). Vault-relative paths work on all platforms; absolute paths work on desktop only. All files are merged — Zotero wins on conflict. Can be overridden per-note via the "bibliography" frontmatter key.':
+    'One or more bibliography files (.bib, .json, or .yaml). Vault-relative paths work on all platforms; absolute paths work on desktop only. All files are merged — Zotero wins on conflict. Can be overridden per-note via the "bibliography" frontmatter key.',
+  'Add file': 'Add file',
+  'Remove': 'Remove',
+  'Prioritize citation completion': 'Prioritize citation completion',
+  'Move the citation autocomplete suggester to the front of Obsidian\'s internal queue so it wins when multiple plugins respond to "@". Disable this if another plugin\'s "@" completions stop working.':
+    'Move the citation autocomplete suggester to the front of Obsidian\'s internal queue so it wins when multiple plugins respond to "@". Disable this if another plugin\'s "@" completions stop working.',
+  'Save bibliography snapshot': 'Save bibliography snapshot',
+  'Save bibliography snapshot for this note': 'Save bibliography snapshot for this note',
+  'Citations not in local bibliography snapshot':
+    'Citations not in local bibliography snapshot',
+  'Save as': 'Save as',
+  'Cancel': 'Cancel',
+  'Save': 'Save',
   'Path to Pandoc (optional)': 'Path to Pandoc (optional)',
   'Absolute path to the Pandoc executable. When set, Pandoc is used to convert .bib/.yaml files instead of the built-in parser. Leave blank to use the built-in parser (works on all platforms).':
     'Absolute path to the Pandoc executable. When set, Pandoc is used to convert .bib/.yaml files instead of the built-in parser. Leave blank to use the built-in parser (works on all platforms).',

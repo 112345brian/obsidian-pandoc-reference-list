@@ -243,7 +243,7 @@ export class TooltipManager {
           return;
         }
 
-        const entry = this.plugin.bibManager.bibCache.get(key) as Record<string, unknown> | undefined;
+        const entry = this.plugin.bibManager.bibCache.get(key) as unknown as Record<string, unknown> | undefined;
         const url = entry?.URL as string | undefined;
         const doi = entry?.DOI as string | undefined;
         if (url) { activeWindow.open(url, '_blank'); return; }

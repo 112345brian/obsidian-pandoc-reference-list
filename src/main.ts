@@ -665,9 +665,7 @@ class BibSnapshotModal extends Modal {
     const { contentEl } = this;
     contentEl.createEl('h3', { text: t('Save bibliography snapshot') });
     contentEl.createEl('p', {
-      text: t(
-        `${this.entries.length} entries will be saved as CSL JSON. The file path will be added to this note's frontmatter "bibliography" key.`
-      ),
+      text: `${this.entries.length} entries will be saved as a .bib file. The file path will be added to this note's frontmatter "bibliography" key.`,
     });
 
     const folder = this.file.parent?.path ?? '';
@@ -742,11 +740,11 @@ class BibSnapshotModal extends Modal {
         fm.bibliography = existing.length === 1 ? existing[0] : existing;
       });
 
-      new Notice(t(`Bibliography saved to ${savePath}`));
+      new Notice(`Bibliography saved to ${savePath}`);
       this.plugin.bibManager.reinit(true);
       this.close();
     } catch (e) {
-      new Notice(t(`Failed to save bibliography: ${(e as Error).message}`));
+      new Notice(`Failed to save bibliography: ${(e as Error).message}`);
     }
   }
 

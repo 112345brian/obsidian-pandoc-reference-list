@@ -1,3 +1,22 @@
+import 'obsidian';
+
+declare module 'obsidian' {
+  /**
+   * AbstractInputSuggest was added to Obsidian's public API after the 1.2.8
+   * types package was published. The runtime has it; this declaration gives
+   * TypeScript the shape it needs.
+   */
+  abstract class AbstractInputSuggest<T> {
+    constructor(app: App, inputEl: HTMLInputElement | HTMLTextAreaElement);
+    readonly inputEl: HTMLInputElement | HTMLTextAreaElement;
+    setValue(value: string): this;
+    close(): void;
+    abstract getSuggestions(query: string): T[] | Promise<T[]>;
+    abstract renderSuggestion(item: T, el: HTMLElement): void;
+    abstract selectSuggestion(item: T, evt: MouseEvent | KeyboardEvent): void;
+  }
+}
+
 declare module 'electron' {
   export const clipboard: {
     write(data: {
