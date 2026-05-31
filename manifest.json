@@ -5,6 +5,5 @@
 	"description": "Displays formatted references and citations for Pandoc citekeys in Obsidian.",
 	"author": "bripey",
 	"authorUrl": "https://github.com/112345brian/bripey-citation-suite",
-	"isDesktopOnly": false,
-	"version": "2.2.3"
+	"isDesktopOnly": false
 }

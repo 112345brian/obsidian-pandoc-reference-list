@@ -26,6 +26,7 @@ export const DEFAULT_SETTINGS: ReferenceListSettings = {
   showCitationDecorations: true,
   mobileClickAction: 'show',
   enableCiteKeyCompletion: true,
+  prioritizeCiteKeyCompletion: true,
   showCitekeyTooltips: true,
 };
 
@@ -50,6 +51,7 @@ export interface ReferenceListSettings {
   showCitationDecorations?: boolean;
   tooltipDelay: number;
   enableCiteKeyCompletion?: boolean;
+  prioritizeCiteKeyCompletion?: boolean;
   renderCitations?: boolean;
   renderCitationsReadingMode?: boolean;
   renderLinkCitations?: boolean;
@@ -414,6 +416,22 @@ export class ReferenceListSettingsTab extends PluginSettingTab {
           .setValue(!!this.plugin.settings.enableCiteKeyCompletion)
           .onChange((value) => {
             this.plugin.settings.enableCiteKeyCompletion = value;
+            this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName(t('Prioritize citation completion'))
+      .setDesc(
+        t(
+          'Move the citation autocomplete suggester to the front of Obsidian\'s internal queue so it wins when multiple plugins respond to "@". Disable this if another plugin\'s "@" completions stop working.'
+        )
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.prioritizeCiteKeyCompletion ?? true)
+          .onChange((value) => {
+            this.plugin.settings.prioritizeCiteKeyCompletion = value;
             this.plugin.saveSettings();
           })
       );

@@ -85,9 +85,9 @@ export class CiteSuggest extends EditorSuggest<Fuse.FuseResult<PartialCSLEntry>>
     }
 
     const { plugin } = this;
-    LOG('initPromise.settled =', plugin.initPromise.settled);
-    if (!plugin.initPromise.settled) {
-      LOG('getSuggestions: bailing — initPromise not settled');
+    LOG('bibManager.initPromise.settled =', plugin.bibManager.initPromise.settled);
+    if (!plugin.bibManager.initPromise.settled) {
+      LOG('getSuggestions: bailing — bib not loaded yet');
       return [];
     }
 
