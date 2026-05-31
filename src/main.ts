@@ -150,7 +150,7 @@ export default class ReferenceList extends Plugin {
     this.bibManager = new BibManager(this);
 
     console.log('[bcs:main] loaded settings:', JSON.stringify({
-      pathToBibliography: this.settings.pathToBibliography,
+      bibliographyPaths: this.settings.bibliographyPaths,
       pullFromZotero: this.settings.pullFromZotero,
       zoteroGroups: this.settings.zoteroGroups,
       useNativeZoteroAPI: this.settings.useNativeZoteroAPI,
@@ -164,10 +164,10 @@ export default class ReferenceList extends Plugin {
         console.log('[bcs:main] initPromise.then fired — starting bib load');
         // Load sources in priority order: .bib first (lower priority),
         // Zotero on top (higher priority, wins on conflicts).
-        if (settings.pathToBibliography) {
-          await bibManager.loadGlobalBibFile();
+        if (settings.bibliographyPaths?.length) {
+          await bibManager.loadGlobalBibFiles();
         } else {
-          console.log('[bcs:main] pathToBibliography not set, skipping .bib load');
+          console.log('[bcs:main] no bibliographyPaths set, skipping .bib load');
         }
         if (settings.pullFromZotero) {
           await bibManager.loadAndRefreshGlobalZBib();
@@ -506,6 +506,12 @@ export default class ReferenceList extends Plugin {
     if (saved.enableCiteKeyCompletion === false) delete saved.enableCiteKeyCompletion;
     if (saved.showCitekeyTooltips === false) delete saved.showCitekeyTooltips;
 
+    // Migrate single pathToBibliography → bibliographyPaths array.
+    if (saved.pathToBibliography && !saved.bibliographyPaths?.length) {
+      saved.bibliographyPaths = [saved.pathToBibliography];
+      delete saved.pathToBibliography;
+    }
+
     this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
   }
 
@@ -569,7 +575,7 @@ export default class ReferenceList extends Plugin {
       : null;
 
     if (
-      !settings.pathToBibliography &&
+      !settings.bibliographyPaths?.length &&
       !settings.pullFromZotero &&
       !scopedSettings?.bibliography?.length
     ) {
@@ -597,7 +603,7 @@ export default class ReferenceList extends Plugin {
         if (
           !bib &&
           settings.pullFromZotero &&
-          !settings.pathToBibliography &&
+          !settings.bibliographyPaths?.length &&
           !(await this.bibManager.isZoteroAvailable()) &&
           isCurrent() &&
           cache?.keys.size

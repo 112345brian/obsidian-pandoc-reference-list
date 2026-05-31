@@ -18,6 +18,7 @@ import { ZoteroPullSetting } from './settings/ZoteroPullSetting';
 
 export const DEFAULT_SETTINGS: ReferenceListSettings = {
   pathToPandoc: '',
+  bibliographyPaths: [],
   tooltipDelay: 400,
   zoteroGroups: [],
   renderCitations: true,
@@ -40,7 +41,9 @@ export interface ZoteroGroup {
 
 export interface ReferenceListSettings {
   pathToPandoc?: string;
+  /** @deprecated migrated to bibliographyPaths on first load */
   pathToBibliography?: string;
+  bibliographyPaths: string[];
 
   cslStyleURL?: string;
   cslStylePath?: string;
@@ -153,87 +156,93 @@ export class ReferenceListSettingsTab extends PluginSettingTab {
     }
 
     new Setting(containerEl)
-      .setName(t('Path to bibliography file'))
+      .setName(t('Bibliography files'))
       .setDesc(
         t(
-          'Path to your bibliography file (.bib, .json, or .yaml). Vault-relative paths (e.g. references.bib) work on all platforms. Absolute paths work on desktop only. On blur, absolute paths inside the vault are automatically shortened to vault-relative. Can be overridden per-note via the "bibliography" frontmatter key.'
+          'One or more bibliography files (.bib, .json, or .yaml). Vault-relative paths work on all platforms; absolute paths work on desktop only. All files are merged — Zotero wins on conflict. Can be overridden per-note via the "bibliography" frontmatter key.'
         )
       )
-      .then((setting) => {
-        let inputEl: HTMLInputElement;
-
-        setting.addText((text) => {
-          inputEl = text.inputEl;
-          text
-            .setValue(this.plugin.settings.pathToBibliography ?? '')
-            .onChange((value) => {
-              this.plugin.settings.pathToBibliography = value;
-              this.plugin.saveSettings(() =>
-                this.plugin.bibManager.reinit(true)
-              );
-            });
-
-          // Vault-file autocomplete — works on all platforms.
-          new BibFileSuggest(this.app, text.inputEl);
-
-          // On blur, resolve the path and normalise it to the canonical form.
-          // For example, an absolute path inside the vault becomes vault-relative.
-          text.inputEl.addEventListener('blur', async () => {
-            const raw = text.inputEl.value.trim();
-            if (!raw) return;
-            try {
-              const resolved = await getBibPath(raw);
-              if (resolved !== raw) {
-                text.setValue(resolved);
-                this.plugin.settings.pathToBibliography = resolved;
-                this.plugin.saveSettings();
-              }
-            } catch {
-              // Path unresolvable — leave as-is so the user can see and fix it.
-            }
-          });
-        });
-
-        // Browse button: native OS picker on desktop, vault modal on mobile.
-        setting.addExtraButton((btn) => {
-          btn.setIcon('folder-open').setTooltip(t('Browse…'));
-          btn.onClick(() => {
-            if (Platform.isDesktop) {
-              // Desktop (Electron): a hidden <input type="file"> surfaces the
-              // OS file picker and exposes a non-standard `.path` property on
-              // the selected File object — no Electron API imports needed.
-              const fileInput = document.createElement('input');
-              fileInput.type = 'file';
-              fileInput.accept = '.bib,.json,.yaml,.yml';
-              fileInput.onchange = async () => {
-                const file = fileInput.files?.[0];
-                const fsPath: string | undefined = (file as any)?.path;
-                if (!fsPath) return;
-
-                // Normalise: absolute → vault-relative when the file is inside the vault.
-                let resolved = fsPath;
-                try { resolved = await getBibPath(fsPath); } catch { /* keep absolute */ }
-
-                inputEl.value = resolved;
-                inputEl.dispatchEvent(new Event('input')); // triggers onChange → save
-                this.plugin.settings.pathToBibliography = resolved;
-                this.plugin.saveSettings(() => this.plugin.bibManager.reinit(true));
-              };
-              fileInput.click();
-            } else {
-              // Mobile: the OS file picker can't return a stable file-system path,
-              // so open a vault file picker modal instead. Only vault-relative paths
-              // (synced via Obsidian Sync / iCloud / etc.) make sense on mobile.
-              new BibFilePickerModal((path) => {
-                inputEl.value = path;
-                inputEl.dispatchEvent(new Event('input'));
-                this.plugin.settings.pathToBibliography = path;
-                this.plugin.saveSettings(() => this.plugin.bibManager.reinit(true));
-              }).open();
-            }
-          });
+      .addButton((btn) => {
+        btn.setButtonText(t('Add file')).onClick(() => {
+          this.plugin.settings.bibliographyPaths.push('');
+          this.plugin.saveSettings();
+          this.display();
         });
       });
+
+    this.plugin.settings.bibliographyPaths.forEach((bibPath, index) => {
+      const setting = new Setting(containerEl);
+      setting.setClass('bcs-bib-path-entry');
+
+      let inputEl: HTMLInputElement;
+
+      setting.addText((text) => {
+        inputEl = text.inputEl;
+        text
+          .setPlaceholder('references.bib')
+          .setValue(bibPath)
+          .onChange((value) => {
+            this.plugin.settings.bibliographyPaths[index] = value;
+            this.plugin.saveSettings(() => this.plugin.bibManager.reinit(true));
+          });
+
+        new BibFileSuggest(this.app, text.inputEl);
+
+        text.inputEl.addEventListener('blur', async () => {
+          const raw = text.inputEl.value.trim();
+          if (!raw) return;
+          try {
+            const resolved = await getBibPath(raw);
+            if (resolved !== raw) {
+              text.setValue(resolved);
+              this.plugin.settings.bibliographyPaths[index] = resolved;
+              this.plugin.saveSettings();
+            }
+          } catch {
+            // Path unresolvable — leave as-is.
+          }
+        });
+      });
+
+      setting.addExtraButton((btn) => {
+        btn.setIcon('folder-open').setTooltip(t('Browse…'));
+        btn.onClick(() => {
+          if (Platform.isDesktop) {
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = '.bib,.json,.yaml,.yml';
+            fileInput.onchange = async () => {
+              const file = fileInput.files?.[0];
+              const fsPath: string | undefined = (file as any)?.path;
+              if (!fsPath) return;
+              let resolved = fsPath;
+              try { resolved = await getBibPath(fsPath); } catch { /* keep absolute */ }
+              inputEl.value = resolved;
+              inputEl.dispatchEvent(new Event('input'));
+              this.plugin.settings.bibliographyPaths[index] = resolved;
+              this.plugin.saveSettings(() => this.plugin.bibManager.reinit(true));
+            };
+            fileInput.click();
+          } else {
+            new BibFilePickerModal((path) => {
+              inputEl.value = path;
+              inputEl.dispatchEvent(new Event('input'));
+              this.plugin.settings.bibliographyPaths[index] = path;
+              this.plugin.saveSettings(() => this.plugin.bibManager.reinit(true));
+            }).open();
+          }
+        });
+      });
+
+      setting.addExtraButton((btn) => {
+        btn.setIcon('trash').setTooltip(t('Remove'));
+        btn.onClick(() => {
+          this.plugin.settings.bibliographyPaths.splice(index, 1);
+          this.plugin.saveSettings(() => this.plugin.bibManager.reinit(true));
+          this.display();
+        });
+      });
+    });
 
     ReactDOM.render(
       <ZoteroPullSetting plugin={this.plugin} />,

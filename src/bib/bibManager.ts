@@ -32,11 +32,26 @@ import { setCiteKeyCache } from 'src/editorExtension';
 import equal from 'fast-deep-equal';
 import { t } from 'src/lang/helpers';
 
+// Strip diacritics so "Muller" matches "Müller", "Cezanne" matches "Cézanne".
+// Applied both when building the index and when normalising search queries.
+// Credit: approach from obsidian-citation-extended (MIT).
+export const normalizeDiacritics = (s: string): string =>
+  s.normalize('NFD').replace(/\p{Mn}/gu, '');
+
+// Fuse getFn wrapper that strips diacritics from indexed string fields.
+const fuseFn = (obj: any, path: string | string[]) => {
+  const val = Fuse.config.getFn(obj, path);
+  if (typeof val === 'string') return normalizeDiacritics(val);
+  if (Array.isArray(val)) return val.map(v => typeof v === 'string' ? normalizeDiacritics(v) : v);
+  return val;
+};
+
 // Citekey-biased: used for single-@ autocomplete.
 const fuseSettings = {
   includeMatches: true,
   threshold: 0.35,
   minMatchCharLength: 2,
+  getFn: fuseFn,
   keys: [
     { name: 'id', weight: 0.6 },
     { name: 'title', weight: 0.25 },
@@ -50,6 +65,7 @@ const fuseTitleSettings = {
   includeMatches: true,
   threshold: 0.4,
   minMatchCharLength: 2,
+  getFn: fuseFn,
   keys: [
     { name: 'title', weight: 0.6 },
     { name: 'author.family', weight: 0.2 },
@@ -257,7 +273,7 @@ export class BibManager {
       this.conflictKeys.clear();
 
       const { settings } = this.plugin;
-      if (settings.pathToBibliography) await this.loadGlobalBibFile();
+      if (settings.bibliographyPaths?.length) await this.loadGlobalBibFiles();
       if (settings.pullFromZotero) await this.loadGlobalZBib(false);
     }
 
@@ -377,113 +393,123 @@ export class BibManager {
     }
   }
 
-  // Load the global .bib file into bibCache tagged as 'bib'.
+  // Load all configured .bib files into bibCache tagged as 'bib'.
   // Does not build the CSL engine — call buildGlobalEngine() after all sources load.
-  async loadGlobalBibFile() {
+  //
+  // Parse cache: results are stored in .pandoc/bib-parsed.json as an array of
+  // per-file entries keyed by (path + mtime + size + pandocPath). On startup,
+  // an unchanged file loads from JSON in ~5ms instead of running bibtex-parser.
+  // Absolute paths outside the vault are always re-parsed (no stat available).
+  async loadGlobalBibFiles() {
     const { settings } = this.plugin;
-    console.log('[bcs:bib] loadGlobalBibFile, pathToBibliography=', settings.pathToBibliography);
-    if (!settings.pathToBibliography) {
-      console.log('[bcs:bib] no pathToBibliography set — skipping .bib load');
-      return;
-    }
+    const paths = settings.bibliographyPaths ?? [];
+    if (!paths.length) return;
 
-    // Resolve the path first — getBibPath may return a different (canonical)
-    // form, e.g. vault-relative instead of absolute when the file lives inside
-    // the vault, or an absolute fallback if the vault-relative lookup fails.
-    let resolved: string;
-    try {
-      resolved = await getBibPath(settings.pathToBibliography);
-      console.log('[bcs:bib] resolved bib path =', resolved);
-    } catch (e) {
-      console.error('bripey-citation-suite: cannot resolve .bib path:', e);
-      return;
-    }
-
-    // If getBibPath normalised the path (e.g. absolute → vault-relative), persist
-    // the canonical form so future loads and the settings UI stay in sync.
-    if (resolved !== settings.pathToBibliography) {
-      console.info(
-        `bripey-citation-suite: normalised bib path "${settings.pathToBibliography}" → "${resolved}"`
-      );
-      settings.pathToBibliography = resolved;
-      this.plugin.saveSettings();
-    }
-
-    // ── Parse cache ───────────────────────────────────────────────────────────
-    // For vault-relative .bib files, cache the parsed CSL entries in
-    // .pandoc/bib-parsed.json keyed by (path + mtime + size + pandocPath).
-    // On the next startup, if the source file hasn't changed, we skip the
-    // bibtex-parser entirely and load from JSON in ~5ms instead of ~100ms+.
-    // Absolute paths outside the vault can't be stat'd by vault.adapter, so
-    // they always go through the full parse path.
-    let bib: PartialCSLEntry[] | null = null;
     const CACHE_DIR = normalizePath('.pandoc');
     const BIB_CACHE_PATH = normalizePath('.pandoc/bib-parsed.json');
+    const pandoc = settings.pathToPandoc ?? '';
 
-    if (!isAbsolutePath(resolved)) {
-      try {
-        const [stat, cacheExists] = await Promise.all([
-          app.vault.adapter.stat(normalizePath(resolved)),
-          app.vault.adapter.exists(BIB_CACHE_PATH),
-        ]);
-        if (stat && cacheExists) {
-          const cached = JSON.parse(await app.vault.adapter.read(BIB_CACHE_PATH));
-          if (
-            cached.path === resolved &&
-            cached.mtime === stat.mtime &&
-            cached.size === stat.size &&
-            cached.pandoc === (settings.pathToPandoc ?? '')
-          ) {
-            bib = cached.entries as PartialCSLEntry[];
-            console.log('[bcs:bib] .bib parse cache hit —', bib.length, 'entries');
-          }
+    // Load existing cache file once up-front.
+    let cacheMap = new Map<string, { mtime: number; size: number; pandoc: string; entries: PartialCSLEntry[] }>();
+    try {
+      if (await app.vault.adapter.exists(BIB_CACHE_PATH)) {
+        const raw = JSON.parse(await app.vault.adapter.read(BIB_CACHE_PATH));
+        if (Array.isArray(raw)) {
+          for (const entry of raw) cacheMap.set(entry.path, entry);
         }
-      } catch {
-        // Cache read failure is non-fatal; fall through to full parse.
       }
+    } catch {
+      // Corrupt or missing cache — start fresh.
     }
 
-    if (!bib) {
+    let cacheModified = false;
+    let settingsModified = false;
+
+    for (let i = 0; i < paths.length; i++) {
+      const rawPath = paths[i];
+      if (!rawPath?.trim()) continue;
+
+      let resolved: string;
       try {
-        bib = await bibToCSL(resolved, settings.pathToPandoc);
-        console.log('[bcs:bib] bibToCSL parsed', bib?.length ?? 0, 'entries');
+        resolved = await getBibPath(rawPath);
       } catch (e) {
-        console.error('bripey-citation-suite: failed to load .bib file:', e);
-        return;
+        console.error(`bripey-citation-suite: cannot resolve .bib path "${rawPath}":`, e);
+        continue;
       }
 
-      // Write the parse cache for vault-relative paths.
+      // Persist normalised path back to settings if it changed.
+      if (resolved !== rawPath) {
+        console.info(`bripey-citation-suite: normalised bib path "${rawPath}" → "${resolved}"`);
+        settings.bibliographyPaths[i] = resolved;
+        settingsModified = true;
+      }
+
+      let bib: PartialCSLEntry[] | null = null;
+
       if (!isAbsolutePath(resolved)) {
         try {
-          if (!(await app.vault.adapter.exists(CACHE_DIR))) {
-            await app.vault.adapter.mkdir(CACHE_DIR);
-          }
           const stat = await app.vault.adapter.stat(normalizePath(resolved));
-          if (stat) {
-            await app.vault.adapter.write(BIB_CACHE_PATH, JSON.stringify({
-              path: resolved,
-              mtime: stat.mtime,
-              size: stat.size,
-              pandoc: settings.pathToPandoc ?? '',
-              entries: bib,
-            }));
+          const cached = cacheMap.get(resolved);
+          if (stat && cached &&
+              cached.mtime === stat.mtime &&
+              cached.size === stat.size &&
+              cached.pandoc === pandoc) {
+            bib = cached.entries;
+            console.log(`[bcs:bib] parse cache hit for "${resolved}" — ${bib.length} entries`);
           }
         } catch {
-          // Cache write failure is non-fatal.
+          // Fall through to full parse.
         }
+      }
+
+      if (!bib) {
+        try {
+          bib = await bibToCSL(resolved, settings.pathToPandoc);
+          console.log(`[bcs:bib] parsed "${resolved}" — ${bib?.length ?? 0} entries`);
+        } catch (e) {
+          console.error(`bripey-citation-suite: failed to load "${resolved}":`, e);
+          continue;
+        }
+
+        if (!isAbsolutePath(resolved)) {
+          try {
+            const stat = await app.vault.adapter.stat(normalizePath(resolved));
+            if (stat) {
+              cacheMap.set(resolved, { mtime: stat.mtime, size: stat.size, pandoc, entries: bib });
+              cacheModified = true;
+            }
+          } catch {
+            // Cache write failure is non-fatal.
+          }
+        }
+      }
+
+      // Register for change watching (vault-relative paths only).
+      if (!isAbsolutePath(resolved)) {
+        this.globalWatchedBibPaths.add(normalizePath(resolved));
+      }
+
+      for (const entry of bib) {
+        this.bibCache.set(entry.id, { ...entry, _source: 'bib' });
+        this.bibSourceKeys.add(entry.id);
       }
     }
 
-    // Register for change watching (vault-relative paths only).
-    if (!isAbsolutePath(resolved)) {
-      this.globalWatchedBibPaths.add(normalizePath(resolved));
-      this.rebuildWatchedBibPaths();
+    this.rebuildWatchedBibPaths();
+
+    // Flush updated cache to disk.
+    if (cacheModified) {
+      try {
+        if (!(await app.vault.adapter.exists(CACHE_DIR))) {
+          await app.vault.adapter.mkdir(CACHE_DIR);
+        }
+        await app.vault.adapter.write(BIB_CACHE_PATH, JSON.stringify([...cacheMap.values()]));
+      } catch {
+        // Cache write failure is non-fatal.
+      }
     }
 
-    for (const entry of bib) {
-      this.bibCache.set(entry.id, { ...entry, _source: 'bib' });
-      this.bibSourceKeys.add(entry.id);
-    }
+    if (settingsModified) this.plugin.saveSettings();
     console.log('[bcs:bib] bibCache now has', this.bibCache.size, 'entries after .bib load');
   }
 

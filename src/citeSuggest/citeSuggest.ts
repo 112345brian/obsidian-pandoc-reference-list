@@ -9,6 +9,7 @@ import {
   Platform,
 } from 'obsidian';
 import { searchZoteroNative, DEFAULT_ZOTERO_PORT } from 'src/bib/helpers';
+import { normalizeDiacritics } from 'src/bib/bibManager';
 import { PartialCSLEntry } from 'src/bib/types';
 import ReferenceList from 'src/main';
 import { isZotLitSuggestActive } from 'src/zotlit';
@@ -146,7 +147,7 @@ export class CiteSuggest extends EditorSuggest<Fuse.FuseResult<PartialCSLEntry>>
           ? docs.slice(0, this.limit).map((item, refIndex) => ({ item, refIndex, score: 0 }))
           : [];
       }
-      return fuse?.search(searchQuery, { limit: this.limit }) ?? [];
+      return fuse?.search(normalizeDiacritics(searchQuery), { limit: this.limit }) ?? [];
     }
 
     // ── single-@ mode: citekey-biased Fuse + live Zotero fallback ───────────
@@ -158,7 +159,7 @@ export class CiteSuggest extends EditorSuggest<Fuse.FuseResult<PartialCSLEntry>>
     }
 
     LOG('single-@ fuse docs=', (fuse as any)?._docs?.length ?? 0);
-    const fuseResults = fuse?.search(searchQuery, { limit: this.limit });
+    const fuseResults = fuse?.search(normalizeDiacritics(searchQuery), { limit: this.limit });
     if (fuseResults?.length) return fuseResults;
 
     // Fuse returned nothing — fall back to a live Zotero query.
@@ -236,12 +237,33 @@ export class CiteSuggest extends EditorSuggest<Fuse.FuseResult<PartialCSLEntry>>
     const { context } = this;
     if (!context) return;
 
-    const replaceStr = (event.metaKey || event.ctrlKey)
-      ? `[@${suggestion.item.id}]`
-      : `@${suggestion.item.id}`;
+    const id = suggestion.item.id;
+    const lineText = context.editor.getLine(context.start.line);
+    const charBefore = lineText[context.start.ch - 1];
+    const afterCursor = lineText.substring(context.end.ch);
+    const beforeStart = lineText.substring(0, context.start.ch);
+
+    // Bracket-aware insertion (⌘/ctrl+Enter):
+    //   - charBefore is '[': user typed [@del — bracket already open, just close it
+    //   - cursor inside an existing [@...] block: already bracketed, no wrapping
+    //   - otherwise: wrap fully as [@citekey]
+    // Plain Enter always inserts @citekey regardless of bracket context.
+    let replaceStr: string;
+    if (event.metaKey || event.ctrlKey) {
+      const closingBracketAhead = afterCursor.includes(']');
+      const insideExistingBlock = closingBracketAhead && /\[@[^\]]*$/.test(beforeStart);
+      if (charBefore === '[') {
+        replaceStr = `@${id}]`;          // [@del → [@citekey]
+      } else if (insideExistingBlock) {
+        replaceStr = `@${id}`;           // [@k1; @del] → [@k1; @citekey]
+      } else {
+        replaceStr = `[@${id}]`;         // @del → [@citekey]
+      }
+    } else {
+      replaceStr = `@${id}`;
+    }
 
     context.editor.replaceRange(replaceStr, context.start, context.end);
-
     this.lastSelect = { ch: context.start.ch + replaceStr.length, line: context.start.line };
     this.close();
   }
