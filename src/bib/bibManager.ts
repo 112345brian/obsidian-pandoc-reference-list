@@ -84,6 +84,11 @@ export interface FileCache {
   keys: Set<string>;
   resolvedKeys: Set<string>;
   unresolvedKeys: Set<string>;
+  /** Keys that exist in the global library but are absent from this file's
+   *  local (frontmatter) bibliography. Only populated when the file has a
+   *  `bibliography` frontmatter key. These render with the `is-global-only`
+   *  style to signal they aren't pinned to the local .bib snapshot. */
+  globalOnlyKeys: Set<string>;
   bib: HTMLElement;
   citations: RenderedCitation[];
   citeBibMap: Map<string, string>;
@@ -811,6 +816,10 @@ export class BibManager {
     const citeKeys = new Set<string>();
     const unresolvedKeys = new Set<string>();
     const resolvedKeys = new Set<string>();
+    const globalOnlyKeys = new Set<string>();
+    // True when the file has a pinned local bibliography — triggers the
+    // global-only distinction so unsnapshotted citations render differently.
+    const hasLocalBib = !!getScopedSettings(file)?.bibliography?.length;
     const cachedDoc = this.fileCache.has(file)
       ? this.fileCache.get(file)
       : null;
@@ -840,6 +849,7 @@ export class BibManager {
         keys: citeKeys,
         resolvedKeys,
         unresolvedKeys,
+        globalOnlyKeys,
         bib: null,
         citations: [],
         citeBibMap,
@@ -860,6 +870,8 @@ export class BibManager {
     citeKeys.forEach((k) => {
       if (source.bibCache.has(k)) {
         resolvedKeys.add(k);
+      } else if (hasLocalBib && this.bibCache.has(k)) {
+        globalOnlyKeys.add(k); // in global library but not in local snapshot
       } else {
         unresolvedKeys.add(k);
       }
@@ -867,13 +879,16 @@ export class BibManager {
 
     const filtered = processed.filter((s) =>
       s.citations.every((c) => {
-        const resolved = source.bibCache.has(c.id);
-        if (resolved) {
+        if (source.bibCache.has(c.id)) {
           resolvedKeys.add(c.id);
+          return true;
+        } else if (hasLocalBib && this.bibCache.has(c.id)) {
+          globalOnlyKeys.add(c.id);
+          return false; // scoped engine can't render it; shows as unformatted @key
         } else {
           unresolvedKeys.add(c.id);
+          return false;
         }
-        return resolved;
       })
     );
 
@@ -929,6 +944,7 @@ export class BibManager {
       keys: citeKeys,
       resolvedKeys,
       unresolvedKeys,
+      globalOnlyKeys,
       bib: parsed,
       citations,
       citeBibMap,
@@ -940,6 +956,22 @@ export class BibManager {
     this.dispatchResult(file, result);
 
     return result.bib;
+  }
+
+  /** Return all CSL entries for the citekeys currently used in `file`,
+   *  drawing from the global library (so Zotero-only entries are included).
+   *  Returns null if the file has no resolved or global-only keys yet. */
+  snapshotEntries(file: TFile): PartialCSLEntry[] | null {
+    const cache = this.fileCache.get(file);
+    if (!cache) return null;
+    const allKeys = new Set([...cache.resolvedKeys, ...cache.globalOnlyKeys]);
+    if (!allKeys.size) return null;
+    const entries: PartialCSLEntry[] = [];
+    for (const key of allKeys) {
+      const entry = this.bibCache.get(key);
+      if (entry) entries.push(entry);
+    }
+    return entries.length ? entries : null;
   }
 
   async getZLinksForKeys(citekeys: Set<string>) {

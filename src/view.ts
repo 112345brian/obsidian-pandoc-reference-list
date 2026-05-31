@@ -26,10 +26,11 @@ export class ReferenceListView extends ItemView {
     if (bib && this.contentEl.firstChild !== bib) {
       let count = 0;
       const activeView = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
-      const unresolvedCount = activeView?.file
-        ? this.plugin.bibManager.fileCache.get(activeView.file)?.unresolvedKeys
-            .size ?? 0
-        : 0;
+      const fileCache = activeView?.file
+        ? this.plugin.bibManager.fileCache.get(activeView.file)
+        : null;
+      const unresolvedCount = fileCache?.unresolvedKeys.size ?? 0;
+      const globalOnlyCount = fileCache?.globalOnlyKeys.size ?? 0;
       bib.findAll('.csl-entry').forEach((e) => {
         count++;
         const leafRoot = this.leaf.getRoot();
@@ -63,6 +64,15 @@ export class ReferenceListView extends ItemView {
                 },
               });
             }
+            if (globalOnlyCount) {
+              div.createDiv({
+                cls: 'bcs-reference-list__global-only-count',
+                text: globalOnlyCount.toString(),
+                attr: {
+                  'aria-label': t('Citations not in local bibliography snapshot'),
+                },
+              });
+            }
             div.createDiv(
               {
                 cls: 'clickable-icon',
@@ -75,6 +85,25 @@ export class ReferenceListView extends ItemView {
                 btn.onClickEvent(() => copyElToClipboard(bib));
               }
             );
+            // Snapshot button — only shown when there are citations to save.
+            if (activeView?.file) {
+              div.createDiv(
+                {
+                  cls: 'clickable-icon',
+                  attr: {
+                    'aria-label': t('Save bibliography snapshot'),
+                  },
+                },
+                (btn) => {
+                  setIcon(btn, 'lucide-camera');
+                  btn.onClickEvent(() => {
+                    const file = activeView.file;
+                    const entries = this.plugin.bibManager.snapshotEntries(file);
+                    if (entries?.length) this.plugin.openSnapshot(file, entries);
+                  });
+                }
+              );
+            }
           });
         }
       );

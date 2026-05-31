@@ -3,6 +3,8 @@ import {
   Events,
   MarkdownView,
   Menu,
+  Modal,
+  Notice,
   Plugin,
   TAbstractFile,
   TFile,
@@ -241,6 +243,19 @@ export default class ReferenceList extends Plugin {
           .join('\n\n');
 
         editor.replaceSelection(text);
+      },
+    });
+
+    this.addCommand({
+      id: 'snapshot-bibliography',
+      name: t('Save bibliography snapshot for this note'),
+      checkCallback: (checking) => {
+        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (!view?.file) return false;
+        const entries = this.bibManager.snapshotEntries(view.file);
+        if (!entries?.length) return false;
+        if (!checking) this.openSnapshot(view.file, entries);
+        return true;
       },
     });
 
@@ -565,6 +580,10 @@ export default class ReferenceList extends Plugin {
     true
   );
 
+  openSnapshot(file: TFile, entries: import('./bib/types').PartialCSLEntry[]) {
+    new BibSnapshotModal(this.app, this, file, entries).open();
+  }
+
   processReferences = async () => {
     const run = ++this.processReferencesRun;
     const isCurrent = () => run === this.processReferencesRun;
@@ -620,4 +639,119 @@ export default class ReferenceList extends Plugin {
       view?.setNoContentMessage();
     }
   };
+}
+
+/** Modal that lets the user choose a filename and location for the snapshot,
+ *  then writes the CSL-JSON file and wires it into the note's frontmatter. */
+class BibSnapshotModal extends Modal {
+  private plugin: ReferenceList;
+  private file: TFile;
+  private entries: import('./bib/types').PartialCSLEntry[];
+
+  constructor(
+    app: import('obsidian').App,
+    plugin: ReferenceList,
+    file: TFile,
+    entries: import('./bib/types').PartialCSLEntry[]
+  ) {
+    super(app);
+    this.plugin = plugin;
+    this.file = file;
+    this.entries = entries;
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.createEl('h3', { text: t('Save bibliography snapshot') });
+    contentEl.createEl('p', {
+      text: t(
+        `${this.entries.length} entries will be saved as CSL JSON. The file path will be added to this note's frontmatter "bibliography" key.`
+      ),
+    });
+
+    const folder = this.file.parent?.path ?? '';
+    const stem = this.file.basename;
+    const defaultPath = normalizePath(
+      (folder ? folder + '/' : '') + stem + '-bibliography.json'
+    );
+
+    const inputWrap = contentEl.createDiv({ cls: 'bcs-snapshot-input-wrap' });
+    inputWrap.createEl('label', { text: t('Save as') });
+    const input = inputWrap.createEl('input', {
+      type: 'text',
+      value: defaultPath,
+      cls: 'bcs-snapshot-input',
+    });
+    input.style.width = '100%';
+
+    const btnRow = contentEl.createDiv({ cls: 'bcs-snapshot-btn-row' });
+    btnRow.style.display = 'flex';
+    btnRow.style.justifyContent = 'flex-end';
+    btnRow.style.gap = '8px';
+    btnRow.style.marginTop = '12px';
+
+    const cancelBtn = btnRow.createEl('button', { text: t('Cancel') });
+    cancelBtn.addEventListener('click', () => this.close());
+
+    const saveBtn = btnRow.createEl('button', {
+      text: t('Save'),
+      cls: 'mod-cta',
+    });
+    saveBtn.addEventListener('click', () => this.doSave(input.value.trim()));
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') this.doSave(input.value.trim());
+      if (e.key === 'Escape') this.close();
+    });
+
+    setTimeout(() => { input.select(); }, 50);
+  }
+
+  private async doSave(rawPath: string) {
+    if (!rawPath) return;
+    const savePath = normalizePath(rawPath);
+
+    try {
+      // Ensure parent directory exists.
+      const dir = savePath.includes('/')
+        ? savePath.substring(0, savePath.lastIndexOf('/'))
+        : '';
+      if (dir && !(await this.app.vault.adapter.exists(dir))) {
+        await this.app.vault.adapter.mkdir(dir);
+      }
+
+      // Write CSL JSON (strip internal _source/_dateModified fields).
+      const clean = this.entries.map(({ _source, _dateModified, ...rest }: any) => rest);
+      await this.app.vault.adapter.write(savePath, JSON.stringify(clean, null, 2));
+
+      // Compute vault-relative path for the frontmatter link.
+      const noteDir = this.file.parent?.path ?? '';
+      const relPath = noteDir
+        ? normalizePath(savePath).replace(normalizePath(noteDir) + '/', '')
+        : savePath;
+
+      // Add / append to the frontmatter bibliography array.
+      await this.app.fileManager.processFrontMatter(this.file, (fm) => {
+        const existing: string[] = Array.isArray(fm.bibliography)
+          ? fm.bibliography
+          : fm.bibliography
+          ? [fm.bibliography]
+          : [];
+        if (!existing.includes(relPath) && !existing.includes(savePath)) {
+          existing.push(relPath);
+        }
+        fm.bibliography = existing.length === 1 ? existing[0] : existing;
+      });
+
+      new Notice(t(`Bibliography saved to ${savePath}`));
+      this.plugin.bibManager.reinit(true);
+      this.close();
+    } catch (e) {
+      new Notice(t(`Failed to save bibliography: ${(e as Error).message}`));
+    }
+  }
+
+  onClose() {
+    this.contentEl.empty();
+  }
 }

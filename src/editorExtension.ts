@@ -34,12 +34,14 @@ const citeMark = (
   sourceFile: string | undefined,
   isResolved: boolean,
   isUnresolved: boolean,
+  isGlobalOnly: boolean,
   noteIndex?: string
 ) => {
   const cls = ['cm-pandoc-citation', 'pandoc-citation'];
 
-  if (isResolved) cls.push('is-resolved');
-  if (isUnresolved) cls.push('is-unresolved');
+  if (isGlobalOnly) cls.push('is-global-only');
+  else if (isResolved) cls.push('is-resolved');
+  else if (isUnresolved) cls.push('is-unresolved');
 
   const attr: Record<string, string> = {
     'data-citekey': citekey,
@@ -287,6 +289,7 @@ export const citeKeyPlugin = ViewPlugin.fromClass(
                   !nodeProps?.includes('link') &&
                   citekeyCache?.unresolvedKeys.has(part.val);
                 const isResolved = citekeyCache?.resolvedKeys.has(part.val);
+                const isGlobalOnly = citekeyCache?.globalOnlyKeys?.has(part.val) ?? false;
 
                 b.add(
                   start,
@@ -296,6 +299,7 @@ export const citeKeyPlugin = ViewPlugin.fromClass(
                     obsView?.file.path,
                     isResolved,
                     isUnresolved,
+                    isGlobalOnly,
                     rendered?.note ? rendered.noteIndex.toString() : undefined
                   )
                 );
@@ -308,11 +312,14 @@ export const citeKeyPlugin = ViewPlugin.fromClass(
                   citekeyCache?.unresolvedKeys.has(next.val);
                 const isResolved =
                   !!next && citekeyCache?.resolvedKeys.has(next.val);
+                const isGlobalOnly =
+                  !!next && (citekeyCache?.globalOnlyKeys?.has(next.val) ?? false);
 
                 const classes: string[] = [part.type];
 
-                if (isUnresolved) classes.push('is-unresolved');
-                if (isResolved) classes.push('is-resolved');
+                if (isGlobalOnly) classes.push('is-global-only');
+                else if (isUnresolved) classes.push('is-unresolved');
+                else if (isResolved) classes.push('is-resolved');
 
                 b.add(start, end, citeMarkFormatting(classes.join(' ')));
                 continue;
