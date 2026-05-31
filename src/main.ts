@@ -21,6 +21,7 @@ import {
   bibManagerField,
   editorTooltipHandler,
 } from './editorExtension';
+import { cslToBibTeX } from './bib/bibtexSerializer';
 import { t } from './lang/helpers';
 import { processCiteKeys } from './markdownPostprocessor';
 import {
@@ -672,7 +673,7 @@ class BibSnapshotModal extends Modal {
     const folder = this.file.parent?.path ?? '';
     const stem = this.file.basename;
     const defaultPath = normalizePath(
-      (folder ? folder + '/' : '') + stem + '-bibliography.json'
+      (folder ? folder + '/' : '') + stem + '-bibliography.bib'
     );
 
     const inputWrap = contentEl.createDiv({ cls: 'bcs-snapshot-input-wrap' });
@@ -720,9 +721,8 @@ class BibSnapshotModal extends Modal {
         await this.app.vault.adapter.mkdir(dir);
       }
 
-      // Write CSL JSON (strip internal _source/_dateModified fields).
-      const clean = this.entries.map(({ _source, _dateModified, ...rest }: any) => rest);
-      await this.app.vault.adapter.write(savePath, JSON.stringify(clean, null, 2));
+      // Serialize to BibTeX and write.
+      await this.app.vault.adapter.write(savePath, cslToBibTeX(this.entries));
 
       // Compute vault-relative path for the frontmatter link.
       const noteDir = this.file.parent?.path ?? '';
