@@ -36,6 +36,10 @@ This means you can keep a `.bib` export as a fallback without having to choose b
 
 The native Zotero API works on mobile as long as Zotero is running and reachable by IP on the local network. Better BibTeX is not supported on mobile.
 
+## Full-text search with @@
+
+When ZotLit is installed and active, typing `@@` in the editor searches via ZotLit's SQLite database — the same engine powering ZotLit's own `[@` suggester. This gives title/author-biased full-text search with spaces allowed. If ZotLit is not installed, bripey falls back to its own title-biased Fuse index.
+
 ## Refreshing
 
 The bibliography refreshes automatically when you switch notes. You can also force a refresh from the sidebar menu.

@@ -9,10 +9,13 @@ A citation management plugin for Obsidian. Displays a formatted reference sideba
 - **Formatted reference sidebar** — live list of all citations in the current note, filterable, with copy and jump-to buttons
 - **Inline citation rendering** — live-preview and reading-mode support for `[@citekey]` and `[[@wikilink]]` syntax
 - **No Pandoc required** — pure-JS BibTeX/BibLaTeX parser built in; Pandoc can still be used as an opt-in
-- **Multi-source bibliography** — `.bib` file and Zotero load simultaneously; Zotero wins on conflicts
+- **Multiple bibliography sources** — any number of `.bib` files plus Zotero, all merged; Zotero wins on conflicts
 - **Native Zotero 7/8 API** — no Better BibTeX plugin required (BBT still supported for Zotero 6)
 - **Mobile support** — works on iOS and Android; tap citations in reading mode for a bottom-sheet card; long-press in editor mode to view citation without interrupting editing
-- **Citekey autocomplete** — fuzzy search across all bibliography entries, triggers after `@`
+- **Citekey autocomplete** — `@` triggers fuzzy citekey search; `@@` triggers full-text title/author search (uses ZotLit's database when available)
+- **Smart bracket insertion** — `⌘↵` wraps citations in `[@key]`, detects existing brackets so it never double-wraps
+- **Diacritic-insensitive search** — "Muller" finds "Müller", "Cezanne" finds "Cézanne"
+- **Bibliography snapshot** — save a note's citations as a `.bib` file with one click; bripey colour-codes citekeys to show sync status (blue = in snapshot, yellow = in library but not snapshotted, red = missing)
 - **Citation decoration** — citekeys highlighted in accent color in the editor; customizable via Style Settings
 - **Literature note creation** — create and open literature notes directly from the sidebar
 - **Insert bibliography at cursor** — command palette action to dump the full formatted reference list into the note
@@ -44,5 +47,7 @@ This fork incorporates changes from:
 - [astroHaoPeng/alp-obsidian-pandoc-reference-list](https://github.com/astroHaoPeng/alp-obsidian-pandoc-reference-list) — file-relative bib paths, multiple bibliography files, auto-update on rename, better error messages
 - [wjvg-gif/obsidian-pandoc-reference-list-zotero8](https://github.com/wjvg-gif/obsidian-pandoc-reference-list-zotero8) — native Zotero 7/8 API mode
 - [sjelms/obsidian-pandoc-inline-citations](https://github.com/sjelms/obsidian-pandoc-inline-citations) — DOM fallback fixes, wikilink alias parsing
+
+Diacritic normalization approach credited to [akhmialeuski/obsidian-citation-extended](https://github.com/akhmialeuski/obsidian-citation-extended) (MIT).
 
 This fork was assembled with significant help from Claude (Anthropic). Bug diagnosis, cherry-pick selection, and most feature work were done in Claude Code sessions.
