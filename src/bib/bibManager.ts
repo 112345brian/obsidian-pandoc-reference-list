@@ -78,10 +78,9 @@ interface ScopedSettings {
   style?: string;
   lang?: string;
   bibliography?: string[];
-  /** Paths from the `bcs-snapshot` frontmatter key. When present, bripey
-   *  loads these .bib citekeys purely for blue/yellow/red colour comparison.
-   *  The global engine is still used for rendering — the snapshot does NOT
-   *  become the CSL source of truth. */
+  /** Resolved paths from the `bibliography` frontmatter key. Bripey loads
+   *  these citekeys for blue/yellow/red colour comparison only — the global
+   *  engine always handles rendering. */
   snapshotBib?: string[];
 }
 
@@ -144,10 +143,10 @@ export function getScopedSettings(file: TFile): ScopedSettings | null {
   );
   output.bibliography = bibliography.length ? bibliography : undefined;
 
-  const snapshotPaths = getFrontmatterStringList(frontmatter['bcs-snapshot']).map(
-    (p) => resolveScopedPath(file, p)
-  );
-  output.snapshotBib = snapshotPaths.length ? snapshotPaths : undefined;
+  // bibliography frontmatter is used for colour comparison (blue/yellow/red)
+  // and passed to other tools (Pandoc). Bripey always renders from the global
+  // engine — bibliography never overrides the CSL source.
+  output.snapshotBib = bibliography.length ? bibliography : undefined;
 
   output.style =
     getFrontmatterString(frontmatter.csl) ||
