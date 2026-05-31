@@ -182,6 +182,13 @@ export class BibManager {
   fuseTitle: Fuse<PartialCSLEntry>;
   engine: any;
 
+  /** True as soon as the Fuse index is built — gates autocomplete independently
+   *  of the CSL engine so `@` suggestions are available before citeproc compiles
+   *  the citation style. */
+  get fuseReady(): boolean {
+    return this.fuse != null;
+  }
+
   zCitekeyToLinks: Map<string, string> = new Map();
   zCitekeyToPDFLinks: Map<string, string[]> = new Map();
 
@@ -256,6 +263,13 @@ export class BibManager {
 
     await this.buildGlobalEngine();
     this.initPromise.resolve();
+  }
+
+  // Build the Fuse indexes from the current bibCache without touching the CSL
+  // engine. Called after all data sources have loaded so that autocomplete
+  // is available before the (slower) citeproc engine compilation finishes.
+  buildFuseIndex() {
+    this.setFuse(Array.from(this.bibCache.values()));
   }
 
   setFuse(data: PartialCSLEntry[] = []) {
@@ -385,16 +399,6 @@ export class BibManager {
       return;
     }
 
-    let bib: PartialCSLEntry[];
-    try {
-      // Pass the already-resolved path so bibToCSL skips a redundant getBibPath call.
-      bib = await bibToCSL(resolved, settings.pathToPandoc);
-      console.log('[bcs:bib] bibToCSL returned', bib?.length ?? 'null', 'entries');
-    } catch (e) {
-      console.error('bripey-citation-suite: failed to load .bib file:', e);
-      return;
-    }
-
     // If getBibPath normalised the path (e.g. absolute → vault-relative), persist
     // the canonical form so future loads and the settings UI stay in sync.
     if (resolved !== settings.pathToBibliography) {
@@ -403,6 +407,71 @@ export class BibManager {
       );
       settings.pathToBibliography = resolved;
       this.plugin.saveSettings();
+    }
+
+    // ── Parse cache ───────────────────────────────────────────────────────────
+    // For vault-relative .bib files, cache the parsed CSL entries in
+    // .pandoc/bib-parsed.json keyed by (path + mtime + size + pandocPath).
+    // On the next startup, if the source file hasn't changed, we skip the
+    // bibtex-parser entirely and load from JSON in ~5ms instead of ~100ms+.
+    // Absolute paths outside the vault can't be stat'd by vault.adapter, so
+    // they always go through the full parse path.
+    let bib: PartialCSLEntry[] | null = null;
+    const CACHE_DIR = normalizePath('.pandoc');
+    const BIB_CACHE_PATH = normalizePath('.pandoc/bib-parsed.json');
+
+    if (!isAbsolutePath(resolved)) {
+      try {
+        const [stat, cacheExists] = await Promise.all([
+          app.vault.adapter.stat(normalizePath(resolved)),
+          app.vault.adapter.exists(BIB_CACHE_PATH),
+        ]);
+        if (stat && cacheExists) {
+          const cached = JSON.parse(await app.vault.adapter.read(BIB_CACHE_PATH));
+          if (
+            cached.path === resolved &&
+            cached.mtime === stat.mtime &&
+            cached.size === stat.size &&
+            cached.pandoc === (settings.pathToPandoc ?? '')
+          ) {
+            bib = cached.entries as PartialCSLEntry[];
+            console.log('[bcs:bib] .bib parse cache hit —', bib.length, 'entries');
+          }
+        }
+      } catch {
+        // Cache read failure is non-fatal; fall through to full parse.
+      }
+    }
+
+    if (!bib) {
+      try {
+        bib = await bibToCSL(resolved, settings.pathToPandoc);
+        console.log('[bcs:bib] bibToCSL parsed', bib?.length ?? 0, 'entries');
+      } catch (e) {
+        console.error('bripey-citation-suite: failed to load .bib file:', e);
+        return;
+      }
+
+      // Write the parse cache for vault-relative paths.
+      if (!isAbsolutePath(resolved)) {
+        try {
+          if (!(await app.vault.adapter.exists(CACHE_DIR))) {
+            await app.vault.adapter.mkdir(CACHE_DIR);
+          }
+          const stat = await app.vault.adapter.stat(normalizePath(resolved));
+          if (stat) {
+            await app.vault.adapter.write(BIB_CACHE_PATH, JSON.stringify({
+              path: resolved,
+              mtime: stat.mtime,
+              size: stat.size,
+              pandoc: settings.pathToPandoc ?? '',
+              entries: bib,
+            }));
+          }
+        } catch {
+          // Cache write failure is non-fatal.
+        }
+      }
     }
 
     // Register for change watching (vault-relative paths only).
@@ -530,13 +599,13 @@ export class BibManager {
 
   // Build (or rebuild) the global CSL engine from the current bibCache.
   // Must be called after all sources have finished loading.
+  // Also (re)builds the Fuse indexes so that reinit() and the vault-file watcher
+  // don't need a separate buildFuseIndex() call.
   async buildGlobalEngine() {
     const { settings } = this.plugin;
 
-    // Rebuild the fuse search index from the merged cache.
     console.log('[bcs:bib] buildGlobalEngine, bibCache.size=', this.bibCache.size);
     this.setFuse(Array.from(this.bibCache.values()));
-    console.log('[bcs:bib] fuse built with', (this.fuse as any)?._docs?.length ?? '?', 'docs');
 
     const style =
       settings.cslStylePath ||

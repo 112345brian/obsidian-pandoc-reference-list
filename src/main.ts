@@ -174,6 +174,9 @@ export default class ReferenceList extends Plugin {
         } else {
           console.log('[bcs:main] pullFromZotero not set, skipping Zotero load');
         }
+        // Build the Fuse index now so @ autocomplete is available immediately,
+        // before the (slower) CSL engine compilation below.
+        bibManager.buildFuseIndex();
         // Build the CSL engine once, after all sources are merged.
         await bibManager.buildGlobalEngine();
         console.log('[bcs:main] bib load complete, bibManager.initPromise resolving');

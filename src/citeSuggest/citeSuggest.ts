@@ -91,8 +91,8 @@ export class CiteSuggest extends EditorSuggest<Fuse.FuseResult<PartialCSLEntry>>
     }
 
     const { plugin } = this;
-    if (!plugin.bibManager.initPromise.settled) {
-      LOG('getSuggestions: bib not loaded yet');
+    if (!plugin.bibManager.fuseReady) {
+      LOG('getSuggestions: fuse index not ready yet');
       return [];
     }
 
