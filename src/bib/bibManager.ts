@@ -32,6 +32,7 @@ import { setCiteKeyCache } from 'src/editorExtension';
 import equal from 'fast-deep-equal';
 import { t } from 'src/lang/helpers';
 
+// Citekey-biased: used for single-@ autocomplete.
 const fuseSettings = {
   includeMatches: true,
   threshold: 0.35,
@@ -41,6 +42,19 @@ const fuseSettings = {
     { name: 'title', weight: 0.25 },
     { name: 'author.family', weight: 0.1 },
     { name: 'author.literal', weight: 0.05 },
+  ],
+};
+
+// Title/author-biased: used for @@ full-text autocomplete.
+const fuseTitleSettings = {
+  includeMatches: true,
+  threshold: 0.4,
+  minMatchCharLength: 2,
+  keys: [
+    { name: 'title', weight: 0.6 },
+    { name: 'author.family', weight: 0.2 },
+    { name: 'author.literal', weight: 0.1 },
+    { name: 'id', weight: 0.1 },
   ],
 };
 
@@ -165,6 +179,7 @@ export class BibManager {
 
   bibCache: Map<string, PartialCSLEntry> = new Map();
   fuse: Fuse<PartialCSLEntry>;
+  fuseTitle: Fuse<PartialCSLEntry>;
   engine: any;
 
   zCitekeyToLinks: Map<string, string> = new Map();
@@ -220,6 +235,7 @@ export class BibManager {
     this.styleCache.clear();
     this.bibCache.clear();
     this.fuse = null;
+    this.fuseTitle = null;
     this.engine = null;
     this.plugin = null;
   }
@@ -248,17 +264,22 @@ export class BibManager {
     } else {
       this.fuse.setCollection(data);
     }
+    if (!this.fuseTitle) {
+      this.fuseTitle = new Fuse(data, fuseTitleSettings);
+    } else {
+      this.fuseTitle.setCollection(data);
+    }
   }
 
   updateFuse(data: Map<string, PartialCSLEntry>) {
     if (!this.fuse) return;
 
-    this.fuse.remove((doc) => {
-      return data.has(doc.id);
-    });
+    this.fuse.remove((doc) => data.has(doc.id));
+    this.fuseTitle?.remove((doc) => data.has(doc.id));
 
     for (const doc of data.values()) {
       this.fuse.add(doc);
+      this.fuseTitle?.add(doc);
     }
   }
 

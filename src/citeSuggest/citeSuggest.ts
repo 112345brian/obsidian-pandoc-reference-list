@@ -35,13 +35,19 @@ function getEntryMeta(item: PartialCSLEntry): string {
   return parts.filter(Boolean).join(' · ');
 }
 
+// Single-@ trigger: matches @citekey (no spaces, no @@ prefix)
 const triggerRE = /(^|[^\p{L}\p{N}@])(@)([\p{L}\p{N}:.#$%&\-+?<>~_/]+)$/u;
+
+// Double-@ trigger: @@ followed by any text (spaces allowed) up to a period.
+// A period ends the trigger so normal sentence punctuation closes the popup.
+const doubleAtRE = /(^|[^\p{L}\p{N}@])(@@)([^.]*)$/u;
 
 export class CiteSuggest extends EditorSuggest<Fuse.FuseResult<PartialCSLEntry>> {
   private plugin: ReferenceList;
   private app: App;
 
   limit: number = 20;
+  private isDoubleAtMode = false;
 
   constructor(app: App, plugin: ReferenceList) {
     super(app);
@@ -77,9 +83,11 @@ export class CiteSuggest extends EditorSuggest<Fuse.FuseResult<PartialCSLEntry>>
   async getSuggestions(
     context: EditorSuggestContext
   ): Promise<Fuse.FuseResult<PartialCSLEntry>[]> {
-    LOG('getSuggestions called, query=', JSON.stringify(context.query));
+    LOG('getSuggestions called, query=', JSON.stringify(context.query), 'doubleAt=', this.isDoubleAtMode);
 
-    if (!context.query || context.query.includes(' ')) {
+    if (this.isDoubleAtMode) {
+      // @@ mode: spaces are fine; empty query shows top results (handled below).
+    } else if (!context.query || context.query.includes(' ')) {
       LOG('getSuggestions: bailing — empty query or contains space');
       return [];
     }
@@ -95,21 +103,84 @@ export class CiteSuggest extends EditorSuggest<Fuse.FuseResult<PartialCSLEntry>>
     LOG('bibManager.fuse =', bibManager.fuse ? `Fuse(${(bibManager.fuse as any)._docs?.length ?? '?'} docs)` : 'null');
     LOG('bibManager.bibCache.size =', bibManager.bibCache?.size ?? 'N/A');
 
-    // Use the per-file fuse index when the note has a frontmatter bibliography,
-    // but fall back to the global index if the per-file one is null — this
-    // happens when the fileCache entry was created before the global bib finished
-    // loading (race condition on startup).
-    let fuse = bibManager.fuse;
-    const hasFileCache = bibManager.fileCache.has(context.file);
-    LOG('fileCache has this file =', hasFileCache);
-    if (hasFileCache) {
-      const cache = bibManager.fileCache.get(context.file);
-      LOG('  per-file fuse =', cache.source.fuse ? `Fuse(${(cache.source.fuse as any)._docs?.length ?? '?'} docs)` : 'null');
-      fuse = cache.source.fuse ?? bibManager.fuse;
+    // @@ mode uses the title-biased global index regardless of per-file overrides —
+    // the per-file index doesn't have a title variant and title search is most
+    // useful across the full library anyway.
+    // Single-@ mode uses the per-file index when the note has a frontmatter
+    // bibliography, falling back to global if the per-file one is null.
+    let fuse = this.isDoubleAtMode
+      ? (bibManager.fuseTitle ?? bibManager.fuse)
+      : bibManager.fuse;
+
+    if (!this.isDoubleAtMode) {
+      const hasFileCache = bibManager.fileCache.has(context.file);
+      LOG('fileCache has this file =', hasFileCache);
+      if (hasFileCache) {
+        const cache = bibManager.fileCache.get(context.file);
+        LOG('  per-file fuse =', cache.source.fuse ? `Fuse(${(cache.source.fuse as any)._docs?.length ?? '?'} docs)` : 'null');
+        fuse = cache.source.fuse ?? bibManager.fuse;
+      }
     }
 
+    const searchQuery = context.query.trim();
+
+    // ── @@ mode: ZotLit-first full-text search ─────────────────────────────
+    if (this.isDoubleAtMode) {
+      // 1. Try ZotLit's own SQLite database — title/author-biased, same engine
+      //    ZotLit uses for its own suggester.
+      const zotlitPlugin = (plugin.app as any).plugins?.plugins?.['zotlit'];
+      if (zotlitPlugin?.database) {
+        try {
+          const raw: any[] = searchQuery
+            ? await zotlitPlugin.database.search(searchQuery)
+            : await zotlitPlugin.database.getItemsOf(this.limit);
+          if (raw?.length) {
+            LOG('@@ ZotLit search returned', raw.length, 'items');
+            const results = raw
+              .map((r: any, refIndex: number) => {
+                const titleRaw = r.item?.title;
+                const title: string | undefined = Array.isArray(titleRaw)
+                  ? titleRaw[0]
+                  : typeof titleRaw === 'string'
+                  ? titleRaw
+                  : undefined;
+                const id: string = r.item?.citekey ?? r.item?.citationKey ?? '';
+                if (!id) return null;
+                const entry: PartialCSLEntry = { id, title };
+                const creators = r.item?.creators;
+                if (Array.isArray(creators) && creators.length > 0) {
+                  entry.author = creators.map((c: any) => ({
+                    family: c.lastName ?? c.name ?? '',
+                    given: c.firstName ?? '',
+                  }));
+                }
+                return { item: entry, refIndex, score: 0.5 };
+              })
+              .filter(Boolean) as Fuse.FuseResult<PartialCSLEntry>[];
+            if (results.length) return results;
+          }
+        } catch (e) {
+          LOG('@@ ZotLit database search failed:', e);
+        }
+      }
+
+      // 2. Fall back to title-biased Fuse index when ZotLit is unavailable.
+      LOG('using fuse (title-biased) =', fuse ? `Fuse(${(fuse as any)._docs?.length ?? '?'} docs)` : 'null');
+      if (!searchQuery) {
+        const docs = (fuse as any)?._docs as PartialCSLEntry[] | undefined;
+        if (docs?.length) {
+          return docs.slice(0, this.limit).map((item, refIndex) => ({ item, refIndex, score: 0 }));
+        }
+        return [];
+      }
+      const titleFuseResults = fuse?.search(searchQuery, { limit: this.limit });
+      LOG('@@ fuse title results =', titleFuseResults?.length ?? 0);
+      return titleFuseResults ?? [];
+    }
+
+    // ── single-@ mode: citekey-biased Fuse + live Zotero fallback ───────────
     LOG('using fuse =', fuse ? `Fuse(${(fuse as any)._docs?.length ?? '?'} docs)` : 'null');
-    const fuseResults = fuse?.search(context.query, { limit: this.limit });
+    const fuseResults = fuse?.search(searchQuery, { limit: this.limit });
     LOG('fuse.search results =', fuseResults?.length ?? 0);
     if (fuseResults?.length) return fuseResults;
 
@@ -118,16 +189,14 @@ export class CiteSuggest extends EditorSuggest<Fuse.FuseResult<PartialCSLEntry>>
     // have been pre-loaded into the fuse index, as long as Zotero is running.
     const { settings } = plugin;
     LOG('settings.pullFromZotero =', settings.pullFromZotero);
-    LOG('settings.zoteroGroups =', JSON.stringify(settings.zoteroGroups));
-    LOG('settings.useNativeZoteroAPI =', settings.useNativeZoteroAPI);
     LOG('query.length =', context.query.length);
 
-    if (settings.pullFromZotero && context.query.length >= 2) {
+    if (settings.pullFromZotero && searchQuery.length >= 2) {
       const port = settings.zoteroPort ?? DEFAULT_ZOTERO_PORT;
       const groupIds = settings.zoteroGroups?.map((g) => g.id) ?? [];
       LOG('falling back to live Zotero search, port=', port, 'groupIds=', groupIds);
       try {
-        const items = await searchZoteroNative(port, context.query, groupIds, this.limit);
+        const items = await searchZoteroNative(port, searchQuery, groupIds, this.limit);
         LOG('live Zotero search returned', items.length, 'items');
         return items.map((item, refIndex) => ({ item, refIndex, score: 0.5 }));
       } catch (e) {
@@ -256,6 +325,26 @@ export class CiteSuggest extends EditorSuggest<Fuse.FuseResult<PartialCSLEntry>>
     }
 
     const line = lineRaw;
+
+    // Check @@ (full-text, spaces allowed) before single-@ so it wins.
+    // Uses ZotLit's database search when available (title/author-biased),
+    // falling back to bripey's own title-biased Fuse index.
+    const doubleMatch = line.match(doubleAtRE);
+    if (doubleMatch) {
+      LOG('onTrigger: @@ matched, query=', JSON.stringify(doubleMatch[3]));
+      this.isDoubleAtMode = true;
+      this.lastSelect = null;
+      if (!this.context && pullFromZotero) this.refreshZBib();
+      const triggerIndex = doubleMatch.index + doubleMatch[1].length;
+      return {
+        start: { line: cursor.line, ch: triggerIndex },
+        end: cursor,
+        query: doubleMatch[3],
+      };
+    }
+
+    this.isDoubleAtMode = false;
+
     const match = line.match(triggerRE);
 
     if (!match) {
