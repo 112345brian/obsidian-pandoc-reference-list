@@ -25,7 +25,7 @@ import {
   getCitationSegments,
   getCitations,
 } from 'src/parser/parser';
-import { Keymap, MarkdownView, Menu, TFile, normalizePath, setIcon } from 'obsidian';
+import { FileSystemAdapter, Keymap, MarkdownView, Menu, TFile, normalizePath, setIcon } from 'obsidian';
 import { getLitNoteForCitekey, isZotLitLoaded } from 'src/zotlit';
 import { cite } from 'src/parser/citeproc';
 import { setCiteKeyCache } from 'src/editorExtension';
@@ -78,16 +78,21 @@ interface ScopedSettings {
   style?: string;
   lang?: string;
   bibliography?: string[];
+  /** Paths from the `bcs-snapshot` frontmatter key. When present, bripey
+   *  loads these .bib citekeys purely for blue/yellow/red colour comparison.
+   *  The global engine is still used for rendering — the snapshot does NOT
+   *  become the CSL source of truth. */
+  snapshotBib?: string[];
 }
 
 export interface FileCache {
   keys: Set<string>;
   resolvedKeys: Set<string>;
   unresolvedKeys: Set<string>;
-  /** Keys that exist in the global library but are absent from this file's
-   *  local (frontmatter) bibliography. Only populated when the file has a
-   *  `bibliography` frontmatter key. These render with the `is-global-only`
-   *  style to signal they aren't pinned to the local .bib snapshot. */
+  /** Keys that exist in the global library but are absent from the note's
+   *  snapshot .bib (set via the `bcs-snapshot` frontmatter key). Render with
+   *  the `is-global-only` yellow style — resolvable but not yet snapshotted.
+   *  Empty when no snapshot has been taken for this file. */
   globalOnlyKeys: Set<string>;
   bib: HTMLElement;
   citations: RenderedCitation[];
@@ -138,6 +143,12 @@ export function getScopedSettings(file: TFile): ScopedSettings | null {
     (bibPath) => resolveScopedPath(file, bibPath)
   );
   output.bibliography = bibliography.length ? bibliography : undefined;
+
+  const snapshotPaths = getFrontmatterStringList(frontmatter['bcs-snapshot']).map(
+    (p) => resolveScopedPath(file, p)
+  );
+  output.snapshotBib = snapshotPaths.length ? snapshotPaths : undefined;
+
   output.style =
     getFrontmatterString(frontmatter.csl) ||
     getFrontmatterString(frontmatter['citation-style']) ||
@@ -817,9 +828,6 @@ export class BibManager {
     const unresolvedKeys = new Set<string>();
     const resolvedKeys = new Set<string>();
     const globalOnlyKeys = new Set<string>();
-    // True when the file has a pinned local bibliography — triggers the
-    // global-only distinction so unsnapshotted citations render differently.
-    const hasLocalBib = !!getScopedSettings(file)?.bibliography?.length;
     const cachedDoc = this.fileCache.has(file)
       ? this.fileCache.get(file)
       : null;
@@ -867,11 +875,20 @@ export class BibManager {
       return setNull();
     }
 
+    // Load snapshot citekeys (fast regex, no full parse) if the file has a
+    // bcs-snapshot frontmatter key. These are used only for colour comparison —
+    // the global engine always handles rendering.
+    const snapshotKeys: Set<string> = settings?.snapshotBib?.length
+      ? await this.loadSnapshotKeys(settings.snapshotBib)
+      : new Set();
+    const hasSnapshot = snapshotKeys.size > 0;
+
     citeKeys.forEach((k) => {
       if (source.bibCache.has(k)) {
         resolvedKeys.add(k);
-      } else if (hasLocalBib && this.bibCache.has(k)) {
-        globalOnlyKeys.add(k); // in global library but not in local snapshot
+        if (hasSnapshot && !snapshotKeys.has(k)) {
+          globalOnlyKeys.add(k); // in global library but not saved to snapshot → yellow
+        }
       } else {
         unresolvedKeys.add(k);
       }
@@ -881,10 +898,10 @@ export class BibManager {
       s.citations.every((c) => {
         if (source.bibCache.has(c.id)) {
           resolvedKeys.add(c.id);
+          if (hasSnapshot && !snapshotKeys.has(c.id)) {
+            globalOnlyKeys.add(c.id);
+          }
           return true;
-        } else if (hasLocalBib && this.bibCache.has(c.id)) {
-          globalOnlyKeys.add(c.id);
-          return false; // scoped engine can't render it; shows as unformatted @key
         } else {
           unresolvedKeys.add(c.id);
           return false;
@@ -956,6 +973,29 @@ export class BibManager {
     this.dispatchResult(file, result);
 
     return result.bib;
+  }
+
+  /** Load citekeys from a snapshot .bib file using a fast regex scan —
+   *  no full CSL parse needed since we only need the entry IDs. */
+  private async loadSnapshotKeys(paths: string[]): Promise<Set<string>> {
+    const keys = new Set<string>();
+    for (const p of paths) {
+      try {
+        let text: string;
+        if (isAbsolutePath(p)) {
+          const buf = await FileSystemAdapter.readLocalFile(p);
+          text = new TextDecoder().decode(buf);
+        } else {
+          text = await app.vault.adapter.read(normalizePath(p));
+        }
+        for (const m of text.matchAll(/@\w+\s*\{\s*([^,\s\n]+)\s*,/gm)) {
+          keys.add(m[1].trim());
+        }
+      } catch {
+        // File missing or unreadable — treat snapshot as empty.
+      }
+    }
+    return keys;
   }
 
   /** Return all CSL entries for the citekeys currently used in `file`,

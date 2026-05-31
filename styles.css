@@ -169,11 +169,11 @@ body {
 }
 
 .bcs-reference-list__global-only-count {
-  color: var(--text-on-accent);
+  color: var(--text-normal);
   display: flex;
   padding: var(--size-4-1) var(--size-4-2);
   border-radius: var(--tag-radius);
-  background-color: var(--color-orange);
+  background-color: var(--color-yellow);
   font-weight: var(--font-normal);
   line-height: 1;
   font-size: var(--font-ui-smaller);
@@ -398,17 +398,17 @@ body {
   opacity: 1;
 }
 
-/* Citation exists in the global library but hasn't been saved to this
-   file's local bibliography snapshot yet. Amber = "not pinned". */
+/* Citation is in the global library but not yet saved to this note's
+   snapshot .bib. Yellow = "resolvable but not pinned". */
 .bcs-decorations
   :not(.cm-hmd-internal-link, .cm-link-alias)
   > :is(.pandoc-citation, .at).is-global-only {
-  color: var(--color-orange);
+  color: var(--color-yellow);
   text-decoration-line: underline;
   text-decoration-style: dashed;
   text-decoration-thickness: 2px;
-  text-decoration-color: var(--color-orange);
-  opacity: 0.85;
+  text-decoration-color: var(--color-yellow);
+  opacity: 0.9;
 }
 
 .bcs-decorations

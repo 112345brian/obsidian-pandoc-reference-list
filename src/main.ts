@@ -730,17 +730,22 @@ class BibSnapshotModal extends Modal {
         ? normalizePath(savePath).replace(normalizePath(noteDir) + '/', '')
         : savePath;
 
-      // Add / append to the frontmatter bibliography array.
+      // Write to frontmatter:
+      //   bibliography: path  — for Pandoc / other tools that read this key
+      //   bcs-snapshot: path  — bripey reads this to do blue/yellow/red comparison
+      //                         without using the .bib as the rendering source
       await this.app.fileManager.processFrontMatter(this.file, (fm) => {
-        const existing: string[] = Array.isArray(fm.bibliography)
+        // bibliography — append if not already present
+        const existingBib: string[] = Array.isArray(fm.bibliography)
           ? fm.bibliography
-          : fm.bibliography
-          ? [fm.bibliography]
-          : [];
-        if (!existing.includes(relPath) && !existing.includes(savePath)) {
-          existing.push(relPath);
+          : fm.bibliography ? [fm.bibliography] : [];
+        if (!existingBib.includes(relPath) && !existingBib.includes(savePath)) {
+          existingBib.push(relPath);
         }
-        fm.bibliography = existing.length === 1 ? existing[0] : existing;
+        fm.bibliography = existingBib.length === 1 ? existingBib[0] : existingBib;
+
+        // bcs-snapshot — always set to the snapshot path
+        fm['bcs-snapshot'] = relPath;
       });
 
       new Notice(t(`Bibliography saved to ${savePath}`));
